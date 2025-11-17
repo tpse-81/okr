@@ -3,6 +3,7 @@ from pathlib import Path
 from litestar import Litestar, get
 from litestar.response import File
 from litestar.params import Parameter
+from litestar.static_files import create_static_files_router
 
 from models.project import Project
 
@@ -82,18 +83,6 @@ async def create_project(
     db_session.add(project)
     await db_session.commit()
 
-
-
-@get("/images/{filename:str}")
-async def serve_images(filename: str) -> File:
-    """
-    Serve the static image for the given filename
-
-    returns: the binary file as byte stream
-    """
-    return File(
-        path=Path("images") / filename,
-    )
     return SuccessResponse("successfully created project")
 
 
@@ -105,7 +94,14 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
 
 # Run the web app
 app = Litestar(
-    route_handlers=[hello_world, main_page, serve_images, get_projects, create_project],
+    route_handlers=[
+        hello_world,
+        main_page,
+        get_projects,
+        create_project,
+        # make all files in the images folder available under the /images/{filename} path
+        create_static_files_router(path="/images", directories=["images"]),
+    ],
     debug=True,
     plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
     openapi_config=OpenAPIConfig(
