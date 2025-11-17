@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from litestar import Litestar, get
 from litestar.response import File
@@ -10,7 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from litestar.plugins.sqlalchemy import AsyncSessionConfig, SQLAlchemyAsyncConfig, SQLAlchemyPlugin, base
 
+from litestar.openapi import OpenAPIConfig
+from litestar.openapi.plugins import ScalarRenderPlugin
+
 import uuid
+
+
+@dataclass
+class SuccessResponse:
+    message: str
+
+    def __init__(self, message: str) -> None:
+        self.message = message
 
 
 @get("/hello")
@@ -23,7 +35,7 @@ async def hello_world(db_session: AsyncSession, db_engine: AsyncEngine) -> dict[
     return {"hello": "world"}
 
 
-@get("/", media_type="text/html")
+@get("/", media_type="text/html", include_in_schema=False)
 async def main_page() -> str:
     """
     Renders the main HTML page.
@@ -44,14 +56,15 @@ async def get_projects(db_session: AsyncSession, db_engine: AsyncEngine) -> list
     return list(await db_session.scalars(select(Project)))
 
 
-@get("/create")
+@get("/projects/create")
 async def create_project(
     db_session: AsyncSession,
     db_engine: AsyncEngine,
-    name: str | None = Parameter(default=None),
-    deadline: int | None = Parameter(default=None),
-    creation_date: int | None = Parameter(default=None),
-) -> dict[str, str]:
+    # all project parameters are mandatory, so enforce they're not unset
+    name: str = Parameter(),
+    deadline: int = Parameter(),
+    creation_date: int = Parameter(),
+) -> SuccessResponse:
     """
     Create a new project.
 
@@ -61,10 +74,6 @@ async def create_project(
     return: whether the project was successfully created
     """
 
-    # all project parameters are mandatory, so enforce they're not unset
-    if name is None or deadline is None or creation_date is None:
-        return {"message": "Failed to create project"}
-
     # randomly generate a project id
     project_id = uuid.uuid4()
     project = Project(id=project_id, name=name, deadline=deadline, creation_date=creation_date)
@@ -73,7 +82,6 @@ async def create_project(
     db_session.add(project)
     await db_session.commit()
 
-    return {"message": "Project created"}
 
 
 @get("/images/{filename:str}")
@@ -86,6 +94,7 @@ async def serve_images(filename: str) -> File:
     return File(
         path=Path("images") / filename,
     )
+    return SuccessResponse("successfully created project")
 
 
 # Create a session config that is linked to an SQLite database.
@@ -99,4 +108,10 @@ app = Litestar(
     route_handlers=[hello_world, main_page, serve_images, get_projects, create_project],
     debug=True,
     plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
+    openapi_config=OpenAPIConfig(
+        title="OKR-Tool",
+        version="0.1.0",
+        path="/docs",
+        render_plugins=[ScalarRenderPlugin()],
+    ),
 )
