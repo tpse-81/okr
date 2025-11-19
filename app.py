@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 from litestar import Litestar, get
-from litestar.response import File
 from litestar.params import Parameter
 from litestar.static_files import create_static_files_router
+from litestar.exceptions import NotFoundException
 
 from models.project import Project
+from models.objective import Objective
 
 from sqlalchemy import ForeignKey, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -16,6 +17,12 @@ from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
+
+
+async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
+    result = await db_session.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    return project is not None
 
 
 @dataclass
@@ -48,7 +55,7 @@ async def main_page() -> str:
 
 
 @get("/projects")
-async def get_projects(db_session: AsyncSession, db_engine: AsyncEngine) -> list[Project]:
+async def get_projects(db_session: AsyncSession) -> list[Project]:
     """
     Get the list of projects.
 
@@ -57,10 +64,19 @@ async def get_projects(db_session: AsyncSession, db_engine: AsyncEngine) -> list
     return list(await db_session.scalars(select(Project)))
 
 
+@get("/objectives")
+async def get_objectives(db_session: AsyncSession) -> list[Objective]:
+    """
+    Get the list of Objectives.
+
+    return: a JSON list of objectives
+    """
+    return list(await db_session.scalars(select(Objective)))
+
+
 @get("/projects/create")
 async def create_project(
     db_session: AsyncSession,
-    db_engine: AsyncEngine,
     # all project parameters are mandatory, so enforce they're not unset
     name: str = Parameter(),
     deadline: int = Parameter(),
@@ -86,6 +102,38 @@ async def create_project(
     return SuccessResponse("successfully created project")
 
 
+@get("/objectives/create")
+async def create_objective(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    name: str = Parameter(),
+    description: str = Parameter(),
+    project_id: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Create a new objective.
+
+    param name: the name of the objective to create
+    param description: the description of the objective
+    param project_id: the ID of the related project
+    return: whether the objective was successfully created
+    """
+
+    # check if the project id exists
+    if not await project_exists(db_session, project_id):
+        raise NotFoundException("Project doesn't exist")
+
+    # randomly generate a objective id
+    objective_id = uuid.uuid4()
+    objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
+
+    # create new database entry for objective with parameters from URL
+    db_session.add(objective)
+    await db_session.commit()
+
+    return SuccessResponse("successfully created object")
+
+
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
@@ -99,6 +147,8 @@ app = Litestar(
         main_page,
         get_projects,
         create_project,
+        get_objectives,
+        create_objective,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
