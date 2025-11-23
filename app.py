@@ -4,9 +4,11 @@ from litestar.params import Parameter
 from litestar.static_files import create_static_files_router
 from litestar.exceptions import NotFoundException
 
+# Importing the database models
 from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
+from models.user import User
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -20,12 +22,29 @@ from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
+from typing import Any
+
+# Import for password and hashing
+import hashlib
+import secrets
 
 
 async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
     result = await db_session.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     return project is not None
+
+
+# Maybe use bycrypt or argon
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def generate_twofa_secret() -> str:
+    """
+    generates a random 2FA Token
+    """
+    return secrets.token_hex(16)
 
 
 @dataclass
@@ -117,6 +136,59 @@ async def create_project(
     await db_session.commit()
 
     return SuccessResponse("successfully created project")
+
+
+@get("/users")
+async def get_users(db_session: AsyncSession) -> list[dict[str, Any]]:
+    """
+    Get the list of users (without password hash and 2FA).
+
+    return: a JSON list of users
+    """
+    users = list(await db_session.scalars(select(User)))
+    return [
+        {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+        }
+        for user in users
+    ]
+
+
+@get("/users/create")
+async def create_users(
+    db_session: AsyncSession,
+    db_engine: AsyncEngine,
+    # all project parameters are mandatory, so enfore they are not unset
+    name: str = Parameter(),
+    email: str = Parameter(),
+    password: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Create a new user.
+
+    param name: user's name
+    param email: user's email
+    param password: users plain text password, will be stored in hash
+    return: whether the user was successfully created
+    """
+    # randomly generate a user_id
+    user_id = uuid.uuid4()
+    password_hash = hash_password(password)
+    two_fa_secret = generate_twofa_secret()
+    user = User(
+        id=user_id,
+        name=name,
+        email=email,
+        password_hash=password_hash,
+        two_fa_secret=two_fa_secret,
+    )
+
+    db_session.add(user)
+    await db_session.commit()
+
+    return SuccessResponse("successfully created user")
 
 
 @get("/key_results/create")
@@ -211,6 +283,8 @@ app = Litestar(
         create_objective,
         get_key_results,
         create_key_result,
+        get_users,
+        create_users,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
