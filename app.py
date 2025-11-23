@@ -370,6 +370,8 @@ app = Litestar(
         create_task_for_key_result,
         get_objectives_for_project,
         get_key_results_for_objective,
+        get_users,
+        create_users,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
