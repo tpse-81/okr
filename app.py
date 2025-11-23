@@ -5,7 +5,9 @@ from litestar.response import File
 from litestar.params import Parameter
 from litestar.static_files import create_static_files_router
 
+#Importieren der Databases
 from models.project import Project
+from models.user import User
 
 from sqlalchemy import ForeignKey, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -85,6 +87,41 @@ async def create_project(
 
     return SuccessResponse("successfully created project")
 
+@get("/users")
+async def get_users(db_session: AsyncSession, db_engine: AsyncEngine) -> list[User]:
+    """
+    Get the list of users.
+
+    return: a JSON list of users
+    """
+    return list(await db_session.scalars(select(User)))
+
+@get("/users/create")
+async def create_users(
+    db_session: AsyncSession,
+    db_engine: AsyncEngine,
+    # all project parameters are mandatory, so enfore they are not unset 
+    name: str = Parameter(),
+    email: str = Parameter(),
+    nextcloud_token: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Create a new user.
+
+    param name: user's name
+    param email: user's email
+    param nextcloud_token: token for Nextcloud access
+    return: whether the user was successfully created
+    """
+    #randomly generate a user_id 
+    user_id = uuid.uuid4()
+    user = User(id=user_id, name=name, email=email, nextcloud_token=nextcloud_token)
+
+    db_session.add(user)
+    await db_session.commit()
+
+    return SuccessResponse("successfully created user")
+
 
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
@@ -99,6 +136,8 @@ app = Litestar(
         main_page,
         get_projects,
         create_project,
+        get_users,
+        create_users,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
