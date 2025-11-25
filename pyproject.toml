@@ -9,3 +9,9 @@ dependencies = [
     "litestar[sqlalchemy,standard]>=2.18.0",
     "sqlalchemy>=2.0.44",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "ruff>=0.14.6",
+]

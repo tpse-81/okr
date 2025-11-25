@@ -1,0 +1,35 @@
+name: Run tests, linter and formatter
+
+on:
+  push:
+    paths-ignore:
+      - "README*.md"
+  pull_request:
+    paths-ignore:
+      - "README*.md"
+  workflow_dispatch:
+
+jobs:
+  check-code:
+    name: Run tests, linter and formatter
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install project dependencies from pyproject.toml
+        run: uv sync --all-extras --dev
+
+      - name: Run tests with pytest
+        run: uv run pytest
+
+      - name: Run code linter
+        run: uv run ruff check --output-format=github --target-version=py39
+        continue-on-error: true
+
+      - name: Check code formatting
+        run: uv run ruff format --diff --target-version=py39
+        continue-on-error: true
