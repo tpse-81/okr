@@ -137,7 +137,7 @@ async def create_objective(
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///test.sqlite", session_config=session_config, create_all=True
+    connection_string="sqlite+aiosqlite:///:memory:", session_config=session_config, create_all=True
 )
 
 # Run the web app
