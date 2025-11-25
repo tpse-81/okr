@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 from litestar import Litestar, get
 from litestar.params import Parameter
 from litestar.static_files import create_static_files_router
@@ -8,10 +7,13 @@ from litestar.exceptions import NotFoundException
 from models.project import Project
 from models.objective import Objective
 
-from sqlalchemy import ForeignKey, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from litestar.plugins.sqlalchemy import AsyncSessionConfig, SQLAlchemyAsyncConfig, SQLAlchemyPlugin, base
+from litestar.plugins.sqlalchemy import (
+    AsyncSessionConfig,
+    SQLAlchemyAsyncConfig,
+    SQLAlchemyPlugin,
+)
 
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
@@ -34,7 +36,9 @@ class SuccessResponse:
 
 
 @get("/hello")
-async def hello_world(db_session: AsyncSession, db_engine: AsyncEngine) -> dict[str, str]:
+async def hello_world(
+    db_session: AsyncSession, db_engine: AsyncEngine
+) -> dict[str, str]:
     """
     Prints hello world.
 
@@ -55,7 +59,8 @@ async def main_page() -> str:
 
 
 @get("/projects")
-async def get_projects(db_session: AsyncSession) -> list[Project]:
+async def get_projects(
+    db_session: AsyncSession) -> list[Project]:
     """
     Get the list of projects.
 
@@ -93,7 +98,9 @@ async def create_project(
 
     # randomly generate a project id
     project_id = uuid.uuid4()
-    project = Project(id=project_id, name=name, deadline=deadline, creation_date=creation_date)
+    project = Project(
+        id=project_id, name=name, deadline=deadline, creation_date=creation_date
+    )
 
     # create new database entry for project with parameters from URL
     db_session.add(project)
@@ -137,7 +144,9 @@ async def create_objective(
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///:memory:", session_config=session_config, create_all=True
+    connection_string="sqlite+aiosqlite:///:memory:",
+    session_config=session_config,
+    create_all=True,
 )
 
 # Run the web app
