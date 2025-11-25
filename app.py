@@ -9,6 +9,8 @@ from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
+from models.task import Task
+from models.task import TaskState
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -56,9 +58,7 @@ class SuccessResponse:
 
 
 @get("/hello")
-async def hello_world(
-    db_session: AsyncSession, db_engine: AsyncEngine
-) -> dict[str, str]:
+async def hello_world(db_session: AsyncSession, db_engine: AsyncEngine) -> dict[str, str]:
     """
     Prints hello world.
 
@@ -108,6 +108,49 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     return list(await db_session.scalars(select(Objective)))
 
 
+@get("/key_results/{key_result_id:uuid}/tasks")
+async def get_tasks_from_key_result(
+    key_result_id: uuid, db_session: AsyncSession, db_engine: AsyncEngine
+) -> list[Task]:
+    """
+    param key_result_id: the UUID of the key result whose tasks should be returned
+
+    Gets the list of task for a given key result
+
+    """
+
+    result = await db_session.scalars(select(Task).where(Task.key_result_id == key_result_id))
+    return list(result)
+
+
+
+@get("/key_results/{key_result_id:uuid}/tasks/create")
+async def create_task_for_key_result(
+    key_result_id: uuid.UUID,
+    db_session: AsyncSession,
+    description: str = Parameter(),
+    state: TaskState = Parameter(default=TaskState.OPEN),
+) -> SuccessResponse:
+    """
+    Create a new task for a given key result.
+
+    param key_result_id: the ID of the key result this task belongs to
+    param description: the description of the key result
+    param state: the state of the task can be ONLY one of the following: open", "planned", "in_progress", "done" or "cancelled"
+    """
+
+    # randomly generate a task id
+    task_id = uuid.uuid4()
+
+    task = Task(id=task_id, description=description, state=state, key_result_id=key_result_id)
+
+    # create new database entry for key result with parameters
+    db_session.add(task)
+    await db_session.commit()
+
+    return SuccessResponse("successfully created task")
+
+
 @get("/projects/create")
 async def create_project(
     db_session: AsyncSession,
@@ -127,9 +170,7 @@ async def create_project(
 
     # randomly generate a project id
     project_id = uuid.uuid4()
-    project = Project(
-        id=project_id, name=name, deadline=deadline, creation_date=creation_date
-    )
+    project = Project(id=project_id, name=name, deadline=deadline, creation_date=creation_date)
 
     # create new database entry for project with parameters from URL
     db_session.add(project)
@@ -253,9 +294,7 @@ async def create_objective(
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
-    objective = Objective(
-        id=objective_id, name=name, description=description, project_id=project_id
-    )
+    objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
 
     # create new database entry for objective with parameters from URL
     db_session.add(objective)
@@ -285,6 +324,8 @@ app = Litestar(
         create_key_result,
         get_users,
         create_users,
+        get_tasks_from_key_result,
+        create_task_for_key_result,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
