@@ -1,8 +1,39 @@
-<h1>Hello World with HTML</h1>
+<body style="background-color:black;">
+<h1 style="color:white;">Hello World with HTML</h1>
 <img id="bild1" class="image" src="/images/image.png">
 <img class="image" src="/images/abc.png">
 
-<button>Press me</button>
+<br><br>
+
+<h2 style="color:white">Create a Projectz</h2>
+
+<form method="get" action="/projects/create">
+    <label for="name" style="color:white;">Name:</label>
+    <input type="text" id="name" name="name" />
+    <br><br>
+    <label for="deadline" style="color:white;">Deadline:</label>
+    <input type="number" id="deadline" name="deadline" />
+    <br><br>
+    <label for="creation_date" style="color:white;">Creation Date:</label>
+    <input type="number" id="creation_date" name="creation_date" />
+    <input type="submit">Create objective</input>
+</form>
+
+<br><br>
+
+<h2 style="color:white">Create an Objective</h2>
+
+<form method="get" action="/objectives/create">
+    <label for="objectivename" style="color:white;">Name:</label>
+    <input type="text" id="objectivename" name="name" />
+    <br><br>
+    <label for="description" style="color:white;">Description:</label>
+    <input type="text" id="description" name="description" />
+    <br><br>
+    <label for="project-id" style="color:white;">Project ID:</label>
+    <input type="str" id="project-id" name="project_id" />
+    <input type="submit">Create objective</input>
+</form>
 
 <style>
 .image {
