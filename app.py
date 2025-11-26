@@ -6,6 +6,7 @@ from litestar.exceptions import NotFoundException
 
 from models.project import Project
 from models.objective import Objective
+from models.key_result import KeyResult
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -59,14 +60,23 @@ async def main_page() -> str:
 
 
 @get("/projects")
-async def get_projects(
-    db_session: AsyncSession) -> list[Project]:
+async def get_projects(db_session: AsyncSession) -> list[Project]:
     """
     Get the list of projects.
 
     return: a JSON list of projects
     """
     return list(await db_session.scalars(select(Project)))
+
+
+@get("/key_results")
+async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
+    """
+    Get the list of key results.
+
+    return: a JSON list of key results
+    """
+    return list(await db_session.scalars(select(KeyResult)))
 
 
 @get("/objectives")
@@ -109,6 +119,45 @@ async def create_project(
     return SuccessResponse("successfully created project")
 
 
+@get("/key_results/create")
+async def create_key_result(
+    db_session: AsyncSession,
+    db_engine: AsyncEngine,
+    # all parameters are mandatory, so enforce they're not unset
+    project_id: int = Parameter(),
+    objective_id: int = Parameter(),
+    description: str = Parameter(),
+    start_value: float = Parameter(),
+    end_value: float = Parameter(),
+) -> SuccessResponse:
+    """
+    Create a new key result.
+
+    param project_id: the ID of the project this key result belongs to
+    param objective_id: the ID of the objective this key result belongs to
+    param description: the description of the key result
+    param start_value: the current value at the start of the OKR
+    param end_value: the end value that is the goal of the key result
+    """
+
+    # randomly generate a key_result id
+    key_result_id = uuid.uuid4()
+    key_result = KeyResult(
+        id=key_result_id,
+        project_id=project_id,
+        objective_id=objective_id,
+        description=description,
+        start_value=start_value,
+        end_value=end_value,
+    )
+
+    # create new database entry for key result with parameters from URL
+    db_session.add(key_result)
+    await db_session.commit()
+
+    return SuccessResponse("successfully created key result")
+
+
 @get("/objectives/create")
 async def create_objective(
     db_session: AsyncSession,
@@ -132,7 +181,9 @@ async def create_objective(
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
-    objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
+    objective = Objective(
+        id=objective_id, name=name, description=description, project_id=project_id
+    )
 
     # create new database entry for objective with parameters from URL
     db_session.add(objective)
@@ -158,6 +209,8 @@ app = Litestar(
         create_project,
         get_objectives,
         create_objective,
+        get_key_results,
+        create_key_result,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
