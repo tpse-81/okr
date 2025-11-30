@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from litestar.plugins.sqlalchemy import base
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, relationship
 from uuid import UUID
+from models.objective import Objective
+from models.project_objective import project_objective
 
 
 @dataclass
@@ -17,3 +19,9 @@ class Project(base.UUIDBase):
     name: Mapped[str]
     creation_date: Mapped[int]
     deadline: Mapped[int]
+    # Many-to-many relationship with Objective
+    objectives: Mapped[list["Objective"]] = relationship(
+        secondary=project_objective,
+        back_populates="projects",
+        lazy="selectin"
+    )

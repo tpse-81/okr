@@ -11,6 +11,7 @@ from models.key_result import KeyResult
 from models.user import User
 from models.task import Task
 from models.task import TaskState
+from models.project_objective import project_objective
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -121,7 +122,6 @@ async def get_tasks_from_key_result(
 
     result = await db_session.scalars(select(Task).where(Task.key_result_id == key_result_id))
     return list(result)
-
 
 
 @get("/key_results/{key_result_id:uuid}/tasks/create")
@@ -244,7 +244,6 @@ async def create_key_result(
     """
     Create a new key result.
 
-    param project_id: the ID of the project this key result belongs to
     param objective_id: the ID of the objective this key result belongs to
     param description: the description of the key result
     param start_value: the current value at the start of the OKR
@@ -293,11 +292,34 @@ async def create_objective(
     objective_id = uuid.uuid4()
     objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
 
+    #
+    await db_session.execute(project_objective.insert().values(project_id=project_id, objective_id=str(objective_id)))
+
     # create new database entry for objective with parameters from URL
     db_session.add(objective)
     await db_session.commit()
 
     return SuccessResponse("successfully created object")
+
+
+@get(("/projects/{project_id:str}/objectives"))
+async def get_objectives_for_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+) -> list[Objective]:
+    """ "
+    Query objectives by project ID.
+
+    param project_id: the ID of the project for which to retrieve objectives
+    return: a JSON list of objectives related to the given project
+    """
+
+    # retrieve all objectives related to the project
+    objectives = await db_session.scalars(
+        select(Objective).join(project_objective).where(project_objective.c.project_id == project_id)
+    )
+
+    return list(objectives)
 
 
 # Create a session config that is linked to an SQLite database.
@@ -323,6 +345,7 @@ app = Litestar(
         create_users,
         get_tasks_from_key_result,
         create_task_for_key_result,
+        get_objectives_for_project,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
