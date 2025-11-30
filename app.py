@@ -322,6 +322,29 @@ async def get_objectives_for_project(
     return list(objectives)
 
 
+@get("/objectives/{objective_id:str}/key_results")
+async def get_key_results_for_objective(
+    db_session: AsyncSession,
+    objective_id: str = Parameter(),
+) -> list[KeyResult]:
+    """
+    Query key results by objective ID.
+
+    param objective_id: the ID of the objective for which to retrieve key results
+    return: a JSON list of key results related to the given objective
+    """
+
+    # retrieve all key results related to the objective
+    key_results = await db_session.scalars(
+        select(KeyResult)
+            .join(Objective)
+            .where(KeyResult.objective_id == objective_id)
+    )
+
+    return list(key_results)
+
+
+
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
@@ -346,6 +369,7 @@ app = Litestar(
         get_tasks_from_key_result,
         create_task_for_key_result,
         get_objectives_for_project,
+        get_key_results_for_objective,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
