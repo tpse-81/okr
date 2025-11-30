@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from litestar.plugins.sqlalchemy import base
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey
 from uuid import UUID
+from models.objective import Objective
 
 
 @dataclass
@@ -12,9 +14,20 @@ class KeyResult(base.UUIDBase):
 
     __tablename__ = "key_results"
     # primary key
-    id: Mapped[UUID]
+    id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
     objective_id: Mapped[str]
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]
+
+    # Foreign key to Objective
+    objective_id: Mapped[UUID] = mapped_column(
+        ForeignKey("objectives.id"), nullable=False
+    )
+
+    # N:1 relationship with Objective
+    objective: Mapped["Objective"] = relationship(
+        back_populates="key_results",
+        lazy="selectin"
+    )
