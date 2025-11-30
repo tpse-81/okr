@@ -235,10 +235,8 @@ async def create_users(
 @get("/key_results/create")
 async def create_key_result(
     db_session: AsyncSession,
-    db_engine: AsyncEngine,
     # all parameters are mandatory, so enforce they're not unset
-    project_id: int = Parameter(),
-    objective_id: int = Parameter(),
+    objective_id: str = Parameter(),
     description: str = Parameter(),
     start_value: float = Parameter(),
     end_value: float = Parameter(),
@@ -257,7 +255,6 @@ async def create_key_result(
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        project_id=project_id,
         objective_id=objective_id,
         description=description,
         start_value=start_value,

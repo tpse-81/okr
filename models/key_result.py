@@ -14,8 +14,7 @@ class KeyResult(base.UUIDBase):
     # primary key
     id: Mapped[UUID]
     # Table columns/attributes
-    project_id: Mapped[int]
-    objective_id: Mapped[int]
+    objective_id: Mapped[str]
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]
