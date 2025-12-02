@@ -1,10 +1,17 @@
-from dataclasses import dataclass
 from litestar import Litestar, get, post
+from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
+from litestar.router import Router
 from litestar.static_files import create_static_files_router
 from litestar.exceptions import NotFoundException
 
 # Importing the database models
+from authentication import (
+    AuthenticationMiddleware,
+    generate_twofa_secret,
+    hash_password,
+    login_handler,
+)
 from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
@@ -36,35 +43,13 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
 
-# Import for password and hashing
-import hashlib
-import secrets
+from responses import SuccessResponse
 
 
 async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
     result = await db_session.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     return project is not None
-
-
-# Maybe use bycrypt or argon
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
-
-
-def generate_twofa_secret() -> str:
-    """
-    generates a random 2FA Token
-    """
-    return secrets.token_hex(16)
-
-
-@dataclass
-class SuccessResponse:
-    message: str
-
-    def __init__(self, message: str) -> None:
-        self.message = message
 
 
 @get("/hello")
@@ -483,11 +468,10 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     create_all=True,
 )
 
-# Run the web app
-app = Litestar(
+# requires user to provide a valid auth token
+authenticated_router = Router(
+    path="/",
     route_handlers=[
-        hello_world,
-        main_page,
         get_projects,
         create_project,
         get_objectives,
@@ -495,7 +479,6 @@ app = Litestar(
         get_key_results,
         create_key_result,
         get_users,
-        create_users,
         get_tasks_from_key_result,
         create_task_for_key_result,
         get_objectives_for_project,
@@ -503,9 +486,30 @@ app = Litestar(
         get_users_for_project,
         add_user_to_project,
         add_objective_to_project,
+    ],
+    middleware=[AuthenticationMiddleware],
+    tags=["authenticated"],
+    security=[{"ApiKeyAuth": []}],
+)
+
+# can be accessed without login
+public_router = Router(
+    path="/",
+    route_handlers=[
+        hello_world,
+        main_page,
+        login_handler,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
+        # TODO: creating users should not be possible without authentication!
+        create_users,
     ],
+    tags=["public"],
+)
+
+# Run the web app
+app = Litestar(
+    route_handlers=[public_router, authenticated_router],
     debug=True,
     plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
     openapi_config=OpenAPIConfig(
@@ -513,5 +517,22 @@ app = Litestar(
         version="0.1.0",
         path="/docs",
         render_plugins=[ScalarRenderPlugin()],
+        tags=[
+            Tag(
+                name="public",
+                description="This endpoint is for use without authentication",
+            ),
+            Tag(
+                name="authenticated",
+                description="This endpoint is for authenticated users",
+            ),
+        ],
+        components=Components(
+            security_schemes={
+                "ApiKeyAuth": SecurityScheme(
+                    type="apiKey", security_scheme_in="header", name="Authorization"
+                )
+            },
+        ),
     ),
 )
