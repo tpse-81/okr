@@ -31,6 +31,8 @@ from typing import Any
 import hashlib
 import secrets
 
+from sqlalchemy.orm import selectinload
+
 
 async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
     result = await db_session.execute(select(Project).where(Project.id == project_id))
@@ -106,7 +108,12 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
 
     return: a JSON list of objectives
     """
-    return list(await db_session.scalars(select(Objective)))
+    stmt = select(Objective).options(       # eagerly load Objective children
+        selectinload(Objective.children)
+    )
+    result = await db_session.execute(stmt)
+    objectives = result.scalars().all()     # list of all Objectives
+    return objectives
 
 
 @get("/key_results/{key_result_id:uuid}/tasks")
@@ -314,12 +321,17 @@ async def get_objectives_for_project(
     return: a JSON list of objectives related to the given project
     """
 
-    # retrieve all objectives related to the project
-    objectives = await db_session.scalars(
+    stmt = (
+        
         select(Objective).join(project_objective).where(project_objective.c.project_id == project_id)
+        .options(
+            selectinload(Objective.children)                    # eagerly load all Objective children
+        )
     )
+    result = await db_session.execute(stmt)
+    objectives = result.scalars().all()                         # list of all Objectives
 
-    return list(objectives)
+    return objectives
 
 
 @get("/objectives/{objective_id:str}/key_results")

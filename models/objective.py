@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from litestar.plugins.sqlalchemy import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
+from sqlalchemy import ForeignKey
 from uuid import UUID
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from models.project import Project
     from models.key_result import KeyResult
@@ -36,3 +37,18 @@ class Objective(base.UUIDBase):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+
+    # foreign key to parent Objective
+    parent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("objectives.id", ondelete="SET NULL"),
+        nullable=True
+        )
+    
+    # 1:N relationship with Objective children
+    children: Mapped[list["Objective"]] = relationship(
+        "Objective",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+   
