@@ -19,9 +19,10 @@ class Project(base.UUIDBase):
     name: Mapped[str]
     creation_date: Mapped[int]
     deadline: Mapped[int]
+
     # Many-to-many relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(
+        "Objective",
         secondary=project_objective,
-        back_populates="projects",
         lazy="selectin"
     )

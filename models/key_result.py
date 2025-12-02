@@ -16,18 +16,10 @@ class KeyResult(base.UUIDBase):
     # primary key
     id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
-    objective_id: Mapped[str]
+    objective_id: Mapped[str] = mapped_column(ForeignKey("objectives.id"), nullable=False)
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]
 
-    # Foreign key to Objective
-    objective_id: Mapped[UUID] = mapped_column(
-        ForeignKey("objectives.id"), nullable=False
-    )
-
     # N:1 relationship with Objective
-    objective: Mapped["Objective"] = relationship(
-        back_populates="key_results",
-        lazy="selectin"
-    )
+    objective: Mapped["Objective"] = relationship("Objective", lazy="selectin")
