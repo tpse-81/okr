@@ -15,6 +15,7 @@ from models.project_objective import project_objective
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm import selectinload
 from litestar.plugins.sqlalchemy import (
     AsyncSessionConfig,
     SQLAlchemyAsyncConfig,
@@ -30,8 +31,6 @@ from typing import Any
 # Import for password and hashing
 import hashlib
 import secrets
-
-from sqlalchemy.orm import selectinload
 
 
 async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
