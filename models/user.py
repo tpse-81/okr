@@ -20,7 +20,7 @@ class User(base.UUIDBase):
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str]
 
-    # Many-to-many relationship with Project
+    # N->N relationship with Project
     projects: Mapped[list["UserProject"]] = relationship(
         "UserProject",
         cascade="all, delete-orphan",
