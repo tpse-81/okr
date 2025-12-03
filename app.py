@@ -9,10 +9,10 @@ from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
+from models.user import User
 from models.task import Task
 from models.task import TaskState
 from models.project_objective import project_objective
-from models.user import User
 from models.user_project import UserProject
 
 from sqlalchemy import select, exists, and_
@@ -322,9 +322,9 @@ async def get_objectives_for_project(
 
     stmt = (
         select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
-        .options(selectinload(Objective.children))  # eagerly load all Objective children
+            .join(project_objective)
+            .where(project_objective.c.project_id == project_id)
+            .options(selectinload(Objective.children))  # eagerly load all Objective children
     )
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
@@ -353,6 +353,28 @@ async def get_key_results_for_objective(
 
 
 @get("/projects/{project_id:str}/users")
+async def get_users_for_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+) -> list[User]:
+    """
+    Query users by project ID
+
+    param project_id: the ID of the project for which to retrieve users
+    return: a JSON list of users related to the given project
+    """
+
+    # retrieve all users related to the project
+    users = await db_session.scalars(
+        select(User)
+            .join(UserProject)
+            .where(UserProject.project_id == project_id)
+    )
+
+    return list(users)
+
+
+@post("/projects/{project_id:str}/users")
 async def add_user_to_project(
     db_session: AsyncSession, project_id: str = Parameter(), user_id: str = Parameter(), role: str = Parameter()
 ) -> SuccessResponse:
@@ -418,6 +440,7 @@ app = Litestar(
         create_task_for_key_result,
         get_objectives_for_project,
         get_key_results_for_objective,
+        get_users_for_project,
         add_user_to_project,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),

@@ -20,7 +20,7 @@ class Project(base.UUIDBase):
     creation_date: Mapped[int]
     deadline: Mapped[int]
 
-    # Many-to-many relationship with Objective
+    # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(
         "Objective",
         secondary=project_objective,

@@ -21,5 +21,5 @@ class KeyResult(base.UUIDBase):
     start_value: Mapped[float]
     end_value: Mapped[float]
 
-    # N:1 relationship with Objective
+    # N->1 relationship with Objective
     objective: Mapped["Objective"] = relationship("Objective", lazy="selectin")

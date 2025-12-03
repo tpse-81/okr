@@ -25,7 +25,7 @@ class Objective(base.UUIDBase):
         nullable=True
         )
     
-    # 1:N relationship with Objective children
+    # 1->N relationship with Objective children
     children: Mapped[list["Objective"]] = relationship(
         "Objective",
         cascade="all, delete-orphan",
