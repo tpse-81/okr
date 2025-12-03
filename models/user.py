@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from litestar.plugins.sqlalchemy import base
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, relationship
 from uuid import UUID
+from models.user_project import UserProject
 
 
 @dataclass
@@ -18,3 +19,10 @@ class User(base.UUIDBase):
     email: Mapped[str]
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str]
+
+    # Many-to-many relationship with Project
+    projects: Mapped[list["UserProject"]] = relationship(
+        "UserProject",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )

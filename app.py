@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar import Litestar, get
+from litestar import Litestar, get, post
 from litestar.params import Parameter
 from litestar.static_files import create_static_files_router
 from litestar.exceptions import NotFoundException
@@ -12,8 +12,10 @@ from models.user import User
 from models.task import Task
 from models.task import TaskState
 from models.project_objective import project_objective
+from models.user import User
+from models.user_project import UserProject
 
-from sqlalchemy import select
+from sqlalchemy import select, exists, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
 from litestar.plugins.sqlalchemy import (
@@ -107,11 +109,9 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
 
     return: a JSON list of objectives
     """
-    stmt = select(Objective).options(       # eagerly load Objective children
-        selectinload(Objective.children)
-    )
+    stmt = select(Objective).options(selectinload(Objective.children))  # eagerly load Objective children
     result = await db_session.execute(stmt)
-    objectives = result.scalars().all()     # list of all Objectives
+    objectives = result.scalars().all()  # list of all Objectives
     return objectives
 
 
@@ -321,14 +321,13 @@ async def get_objectives_for_project(
     """
 
     stmt = (
-        
-        select(Objective).join(project_objective).where(project_objective.c.project_id == project_id)
-        .options(
-            selectinload(Objective.children)                    # eagerly load all Objective children
-        )
+        select(Objective)
+        .join(project_objective)
+        .where(project_objective.c.project_id == project_id)
+        .options(selectinload(Objective.children))  # eagerly load all Objective children
     )
     result = await db_session.execute(stmt)
-    objectives = result.scalars().all()                         # list of all Objectives
+    objectives = result.scalars().all()  # list of all Objectives
 
     return objectives
 
@@ -347,13 +346,51 @@ async def get_key_results_for_objective(
 
     # retrieve all key results related to the objective
     key_results = await db_session.scalars(
-        select(KeyResult)
-            .join(Objective)
-            .where(KeyResult.objective_id == objective_id)
+        select(KeyResult).join(Objective).where(KeyResult.objective_id == objective_id)
     )
 
     return list(key_results)
 
+
+@get("/projects/{project_id:str}/users")
+async def add_user_to_project(
+    db_session: AsyncSession, project_id: str = Parameter(), user_id: str = Parameter(), role: str = Parameter()
+) -> SuccessResponse:
+    """
+    Add a user with a role to a project.
+
+    param project_id: ID of the project
+    param user_id: ID of the user
+    role: role of the user in the project
+    return: whether the user was successfully assigned to the project with a role
+    """
+
+    # check if user exists
+    user = await db_session.get(User, user_id)
+    if not user:
+        return {"error": "User not found"}
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        return {"error": "Project not found"}
+
+    # check if user already in project
+    already_in_project = await db_session.scalar(
+        select(exists().where(and_(UserProject.user_id == user_id, UserProject.project_id == project_id)))
+    )
+    if already_in_project:
+        return {"error": "User already in project"}
+
+    user_project_id = uuid.uuid4()
+
+    # create new entry
+    user_project = UserProject(id=user_project_id, project_id=project_id, user_id=user_id, role=role)
+    user.projects.append(user_project)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"User {user.name} added to project {project.name} with role {role}")
 
 
 # Create a session config that is linked to an SQLite database.
@@ -381,8 +418,7 @@ app = Litestar(
         create_task_for_key_result,
         get_objectives_for_project,
         get_key_results_for_objective,
-        get_users,
-        create_users,
+        add_user_to_project,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
