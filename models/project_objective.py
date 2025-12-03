@@ -2,9 +2,12 @@ from sqlalchemy import Column, ForeignKey, Table
 from advanced_alchemy.base import orm_registry
 
 
-# association table for linking projects and objectives (many-to-many relationship)
-# where the combination of project_id and objective_id is unique
 project_objective = Table(
+    """
+    Association table for linking projects and objectives (many-to-many relationship)
+    where the combination of project_id and objective_id is unique
+    """
+
     "project_objective",
     orm_registry.metadata,
 
