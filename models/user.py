@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from litestar.plugins.sqlalchemy import base
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
 from models.user_project import UserProject
 
@@ -13,7 +13,7 @@ class User(base.UUIDBase):
 
     __tablename__ = "users"
     # primary key
-    id: Mapped[UUID]
+    id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
     name: Mapped[str]
     email: Mapped[str]
