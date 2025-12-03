@@ -9,7 +9,6 @@ from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
-from models.user import User
 from models.task import Task
 from models.task import TaskState
 from models.project_objective import project_objective
@@ -109,7 +108,9 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
 
     return: a JSON list of objectives
     """
-    stmt = select(Objective).options(selectinload(Objective.children))  # eagerly load Objective children
+    stmt = select(Objective).options(
+        selectinload(Objective.children)  # eagerly load Objective children
+    )  # eagerly load Objective children
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
     return objectives
@@ -291,15 +292,17 @@ async def create_objective(
     """
 
     # check if the project id exists
-    if not await project_exists(db_session, project_id):
+    project = await db_session.get(Project, project_id)
+    if project is None:
         raise NotFoundException("Project doesn't exist")
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
     objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
 
-    #
     await db_session.execute(project_objective.insert().values(project_id=project_id, objective_id=str(objective_id)))
+    # add the new objective to the project's list of objectives
+    project.objectives.append(objective)
 
     # create new database entry for objective with parameters from URL
     db_session.add(objective)
@@ -322,9 +325,9 @@ async def get_objectives_for_project(
 
     stmt = (
         select(Objective)
-            .join(project_objective)
-            .where(project_objective.c.project_id == project_id)
-            .options(selectinload(Objective.children))  # eagerly load all Objective children
+        .join(project_objective)
+        .where(project_objective.c.project_id == project_id)
+        .options(selectinload(Objective.children))  # eagerly load all Objective children
     )
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
@@ -365,16 +368,12 @@ async def get_users_for_project(
     """
 
     # retrieve all users related to the project
-    users = await db_session.scalars(
-        select(User)
-            .join(UserProject)
-            .where(UserProject.project_id == project_id)
-    )
+    users = await db_session.scalars(select(User).join(UserProject).where(UserProject.project_id == project_id))
 
     return list(users)
 
 
-@post("/projects/{project_id:str}/users")
+@post("/projects/{project_id:str}/users/{user_id:str}")
 async def add_user_to_project(
     db_session: AsyncSession, project_id: str = Parameter(), user_id: str = Parameter(), role: str = Parameter()
 ) -> SuccessResponse:
@@ -390,29 +389,61 @@ async def add_user_to_project(
     # check if user exists
     user = await db_session.get(User, user_id)
     if not user:
-        return {"error": "User not found"}
+        raise NotFoundException("User not found")
 
     # check if project exists
     project = await db_session.get(Project, project_id)
     if not project:
-        return {"error": "Project not found"}
+        raise NotFoundException("Project not found")
 
     # check if user already in project
     already_in_project = await db_session.scalar(
         select(exists().where(and_(UserProject.user_id == user_id, UserProject.project_id == project_id)))
     )
     if already_in_project:
-        return {"error": "User already in project"}
+        raise NotFoundException("User already assigned to this project")
 
     user_project_id = uuid.uuid4()
 
     # create new entry
     user_project = UserProject(id=user_project_id, project_id=project_id, user_id=user_id, role=role)
+
+    # add the project+role the the users list of userprojects
     user.projects.append(user_project)
 
     await db_session.commit()
 
     return SuccessResponse(message=f"User {user.name} added to project {project.name} with role {role}")
+
+
+@post("projects/{project_id:str}/objectives/{objective_id:str}")
+async def add_objective_to_project(
+    db_session: AsyncSession, project_id: str = Parameter(), objective_id: str = Parameter()
+) -> SuccessResponse:
+    """
+    Add an objective to a project
+
+    param project_id: the ID of the project
+    param objective_id: the ID of the objective
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if objective exists
+    objective = await db_session.get(Objective, objective_id)
+    if not objective:
+        raise NotFoundException("Objective not found")
+
+    # link the objective to the project (if already linked nothing happens)
+    if objective not in project.objectives:
+        project.objectives.append(objective)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"Objective {objective.name} successfully linked with project {project.name}")
 
 
 # Create a session config that is linked to an SQLite database.
@@ -442,6 +473,7 @@ app = Litestar(
         get_key_results_for_objective,
         get_users_for_project,
         add_user_to_project,
+        add_objective_to_project,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
     ],
