@@ -30,7 +30,7 @@ class Task(base.UUIDBase):
     #Description of the Task
     description: Mapped[str]
     # Status: for example "open", "planned", "in_progress", "done" or "cancelled"
-    state: Mapped[TaskState] = mapped_column(
+    task_state: Mapped[TaskState] = mapped_column(
     SAEnum(TaskState, name="task_state")
     )
     #Key Result connection

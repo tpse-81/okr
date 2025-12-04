@@ -129,20 +129,20 @@ async def create_task_for_key_result(
     key_result_id: uuid.UUID,
     db_session: AsyncSession,
     description: str = Parameter(),
-    state: TaskState = Parameter(default=TaskState.OPEN),
+    task_state: TaskState = Parameter(default=TaskState.OPEN),
 ) -> SuccessResponse:
     """
     Create a new task for a given key result.
 
     param key_result_id: the ID of the key result this task belongs to
     param description: the description of the key result
-    param state: the state of the task can be ONLY one of the following: open", "planned", "in_progress", "done" or "cancelled"
+    param task_state: the state of the task can be ONLY one of the following: open", "planned", "in_progress", "done" or "cancelled"
     """
 
     # randomly generate a task id
     task_id = uuid.uuid4()
 
-    task = Task(id=task_id, description=description, state=state, key_result_id=key_result_id)
+    task = Task(id=task_id, description=description, task_state=task_state, key_result_id=key_result_id)
 
     # create new database entry for key result with parameters
     db_session.add(task)
