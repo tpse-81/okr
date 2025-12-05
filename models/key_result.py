@@ -16,7 +16,7 @@ class KeyResult(base.UUIDBase):
     # primary key
     id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
-    objective_id: Mapped[str] = mapped_column(ForeignKey("objectives.id"), nullable=False)
+    objective_id: Mapped[str] = mapped_column(ForeignKey("objectives.id", ondelete="CASCADE"),  nullable=False)
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]

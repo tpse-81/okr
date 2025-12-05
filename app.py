@@ -116,9 +116,9 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     return objectives
 
 
-@get("/key_results/{key_result_id:uuid}/tasks")
+@get("/key_results/{key_result_id:str}/tasks")
 async def get_tasks_from_key_result(
-    key_result_id: uuid, db_session: AsyncSession, db_engine: AsyncEngine
+    key_result_id: str, db_session: AsyncSession
 ) -> list[Task]:
     """
     param key_result_id: the UUID of the key result whose tasks should be returned
@@ -131,10 +131,10 @@ async def get_tasks_from_key_result(
     return list(result)
 
 
-@get("/key_results/{key_result_id:uuid}/tasks/create")
+@get("/key_results/{key_result_id:str}/tasks/create")
 async def create_task_for_key_result(
-    key_result_id: uuid.UUID,
     db_session: AsyncSession,
+    key_result_id: str = Parameter(),
     description: str = Parameter(),
     task_state: TaskState = Parameter(default=TaskState.OPEN),
 ) -> SuccessResponse:

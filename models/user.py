@@ -3,6 +3,8 @@ from litestar.plugins.sqlalchemy import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
 from models.user_project import UserProject
+from models.task import Task
+from models.user_task import user_task
 
 
 @dataclass
@@ -24,5 +26,12 @@ class User(base.UUIDBase):
     projects: Mapped[list["UserProject"]] = relationship(
         "UserProject",
         cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    # N->N relationship with Task
+    objectives: Mapped[list["Task"]] = relationship(
+        "Task",
+        secondary=user_task,
         lazy="selectin"
     )
