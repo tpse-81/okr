@@ -26,7 +26,7 @@ class Task(base.UUIDBase):
     
     __tablename__ = "tasks"
     #Primary Key
-    id: Mapped[UUID]
+    id: Mapped[UUID] = mapped_column(primary_key=True)
     #Description of the Task
     description: Mapped[str]
     # Status: for example "open", "planned", "in_progress", "done" or "cancelled"
@@ -34,4 +34,6 @@ class Task(base.UUIDBase):
     SAEnum(TaskState, name="task_state")
     )
     #Key Result connection
-    key_result_id: Mapped[UUID] = mapped_column(ForeignKey("key_results.id", ondelete="CASCADE"))
+    key_result_id: Mapped[str] = mapped_column(
+        ForeignKey("key_results.id", ondelete="CASCADE"), nullable=False
+        )
