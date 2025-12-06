@@ -20,7 +20,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Install project dependencies from pyproject.toml
+      - name: Install project dependencies
         run: uv sync --all-extras --dev
 
       - name: Run tests with pytest
@@ -33,3 +33,4 @@ jobs:
       - name: Check code formatting
         run: uv run ruff format --diff --target-version=py39
         continue-on-error: true
+

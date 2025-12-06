@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar.plugins.sqlalchemy import base
+from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey
 from uuid import UUID
@@ -19,6 +19,7 @@ class KeyResult(base.UUIDBase):
     objective_id: Mapped[str] = mapped_column(
         ForeignKey("objectives.id", ondelete="CASCADE"), nullable=False
     )
+    project_id: Mapped[str]
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]

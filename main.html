@@ -16,7 +16,11 @@
     <br><br>
     <label for="creation_date" style="color:white;">Creation Date:</label>
     <input type="number" id="creation_date" name="creation_date" />
-    <input type="submit">Create objective</input>
+    <br><br>
+    <label for="done" style="color:white;">Done:</label>
+    <input type="hidden" name="done" value="false">
+    <input type="checkbox" id="done" name="done" value="true">
+    <input type="submit" value="Create objective">
 </form>
 
 <br><br>
@@ -34,6 +38,30 @@
     <input type="str" id="project-id" name="project_id" />
     <input type="submit">Create objective</input>
 </form>
+
+<br><br>
+
+<h2 style="color:white">Create a Key Result</h2>
+
+<form method="get" action="/key_results/create">
+    <label for="project-id" style="color:white;">Project ID:</label>
+    <input type="str" id="project-id" name="project_id" />
+    <br><br>
+    <label for="objective-id" style="color:white;">Objective ID:</label>
+    <input type="str" id="objective-id" name="objective_id" />
+    <br><br>
+    <label for="description" style="color:white;">Description:</label>
+    <input type="text" id="description" name="description" />
+    <br><br>
+    <label for="start_value" style="color:white;">Start Value:</label>
+    <input type="number" id="start_value" name="start_value" />
+    <br><br>
+    <label for="end_value" style="color:white;">End Value:</label>
+    <input type="number" id="end_value" name="end_value" />
+    <input type="submit">Create key result</input>
+</form>
+
+<br><br>
 
 <style>
 .image {

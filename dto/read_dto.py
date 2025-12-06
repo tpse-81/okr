@@ -1,5 +1,5 @@
-from litestar.contrib.sqlalchemy.dto import SQLAlchemyDTO
 from litestar.dto import DTOConfig
+from advanced_alchemy.extensions.litestar import SQLAlchemyDTO
 
 from models.project import Project
 from models.objective import Objective

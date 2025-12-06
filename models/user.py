@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar.plugins.sqlalchemy import base
+from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
 from models.user_project import UserProject
