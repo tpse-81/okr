@@ -12,7 +12,7 @@ from argon2 import PasswordHasher
 from datetime import datetime, timezone, timedelta
 
 from litestar.params import Body
-from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from advanced_alchemy.extensions.litestar import SQLAlchemyPlugin
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

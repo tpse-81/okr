@@ -4,6 +4,7 @@ from litestar.params import Parameter
 from litestar.router import Router
 from litestar.static_files import create_static_files_router
 from litestar.exceptions import NotFoundException
+from litestar.exceptions import HTTPException
 
 # Importing the database models
 from authentication import (
@@ -32,11 +33,12 @@ from dto.read_dto import (
 from sqlalchemy import select, exists, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
-from litestar.plugins.sqlalchemy import (
+from advanced_alchemy.extensions.litestar import (
     AsyncSessionConfig,
     SQLAlchemyAsyncConfig,
     SQLAlchemyPlugin,
 )
+
 
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
@@ -50,6 +52,14 @@ async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
     result = await db_session.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     return project is not None
+
+
+async def objective_exists(db_session: AsyncSession, objective_id: str) -> bool:
+    result = await db_session.execute(
+        select(Objective).where(Objective.id == objective_id)
+    )
+    objective = result.scalar_one_or_none()
+    return objective is not None
 
 
 @get("/hello")
@@ -166,6 +176,7 @@ async def create_project(
     name: str = Parameter(),
     deadline: int = Parameter(),
     creation_date: int = Parameter(),
+    done: bool = Parameter(),
 ) -> SuccessResponse:
     """
     Create a new project.
@@ -179,7 +190,11 @@ async def create_project(
     # randomly generate a project id
     project_id = uuid.uuid4()
     project = Project(
-        id=project_id, name=name, deadline=deadline, creation_date=creation_date
+        id=project_id,
+        name=name,
+        deadline=deadline,
+        creation_date=creation_date,
+        done=done,
     )
 
     # create new database entry for project with parameters from URL
@@ -237,6 +252,7 @@ async def create_users(
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
+    project_id: str = Parameter(),
     objective_id: str = Parameter(),
     description: str = Parameter(),
     start_value: float = Parameter(),
@@ -250,11 +266,19 @@ async def create_key_result(
     param start_value: the current value at the start of the OKR
     param end_value: the end value that is the goal of the key result
     """
+    if not project_id:
+        raise HTTPException(status_code=400, detail="invalid project id")
+    if not objective_id:
+        raise HTTPException(status_code=400, detail="invalid objective id")
+
+    if not await project_exists(db_session, project_id):
+        raise NotFoundException("Project doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
+        project_id=project_id,
         objective_id=objective_id,
         description=description,
         start_value=start_value,
@@ -284,7 +308,8 @@ async def create_objective(
     param project_id: the ID of the related project
     return: whether the objective was successfully created
     """
-
+    if not project_id:
+        raise HTTPException(status_code=400, detail="invalid id")
     # check if the project id exists
     project = await db_session.get(Project, project_id)
     if project is None:
@@ -301,7 +326,7 @@ async def create_objective(
     db_session.add(objective)
     await db_session.commit()
 
-    return SuccessResponse("successfully created object")
+    return SuccessResponse("successfully created objective")
 
 
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)

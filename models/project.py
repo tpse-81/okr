@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar.plugins.sqlalchemy import base
+from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
 from models.objective import Objective
@@ -24,3 +24,5 @@ class Project(base.UUIDBase):
     objectives: Mapped[list["Objective"]] = relationship(
         "Objective", secondary=project_objective, lazy="selectin"
     )
+
+    done: Mapped[bool]
