@@ -14,6 +14,14 @@ from models.task import TaskState
 from models.project_objective import project_objective
 from models.user_project import UserProject
 
+from dto.read_dto import (
+    ProjectReadDTO,
+    ObjectiveReadDTO,
+    KeyResultReadDTO,
+    TaskReadDTO,
+    UserReadDTO,
+)
+
 from sqlalchemy import select, exists, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
@@ -27,7 +35,6 @@ from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
-from typing import Any
 
 # Import for password and hashing
 import hashlib
@@ -61,7 +68,9 @@ class SuccessResponse:
 
 
 @get("/hello")
-async def hello_world(db_session: AsyncSession, db_engine: AsyncEngine) -> dict[str, str]:
+async def hello_world(
+    db_session: AsyncSession, db_engine: AsyncEngine
+) -> dict[str, str]:
     """
     Prints hello world.
 
@@ -81,7 +90,7 @@ async def main_page() -> str:
         return f.read()
 
 
-@get("/projects")
+@get("/projects", return_dto=ProjectReadDTO)
 async def get_projects(db_session: AsyncSession) -> list[Project]:
     """
     Get the list of projects.
@@ -91,7 +100,7 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
     return list(await db_session.scalars(select(Project)))
 
 
-@get("/key_results")
+@get("/key_results", return_dto=KeyResultReadDTO)
 async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     """
     Get the list of key results.
@@ -101,7 +110,7 @@ async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     return list(await db_session.scalars(select(KeyResult)))
 
 
-@get("/objectives")
+@get("/objectives", return_dto=ObjectiveReadDTO)
 async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     """
     Get the list of Objectives.
@@ -113,10 +122,10 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     )  # eagerly load Objective children
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
-    return objectives
+    return list(objectives)
 
 
-@get("/key_results/{key_result_id:str}/tasks")
+@get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
 async def get_tasks_from_key_result(
     key_result_id: str, db_session: AsyncSession
 ) -> list[Task]:
@@ -127,7 +136,9 @@ async def get_tasks_from_key_result(
 
     """
 
-    result = await db_session.scalars(select(Task).where(Task.key_result_id == key_result_id))
+    result = await db_session.scalars(
+        select(Task).where(Task.key_result_id == key_result_id)
+    )
     return list(result)
 
 
@@ -149,7 +160,12 @@ async def create_task_for_key_result(
     # randomly generate a task id
     task_id = uuid.uuid4()
 
-    task = Task(id=task_id, description=description, task_state=task_state, key_result_id=key_result_id)
+    task = Task(
+        id=task_id,
+        description=description,
+        task_state=task_state,
+        key_result_id=key_result_id,
+    )
 
     # create new database entry for key result with parameters
     db_session.add(task)
@@ -177,7 +193,9 @@ async def create_project(
 
     # randomly generate a project id
     project_id = uuid.uuid4()
-    project = Project(id=project_id, name=name, deadline=deadline, creation_date=creation_date)
+    project = Project(
+        id=project_id, name=name, deadline=deadline, creation_date=creation_date
+    )
 
     # create new database entry for project with parameters from URL
     db_session.add(project)
@@ -186,28 +204,19 @@ async def create_project(
     return SuccessResponse("successfully created project")
 
 
-@get("/users")
-async def get_users(db_session: AsyncSession) -> list[dict[str, Any]]:
+@get("/users", return_dto=UserReadDTO)
+async def get_users(db_session: AsyncSession) -> list[User]:
     """
     Get the list of users (without password hash and 2FA).
 
     return: a JSON list of users
     """
-    users = list(await db_session.scalars(select(User)))
-    return [
-        {
-            "id": str(user.id),
-            "name": user.name,
-            "email": user.email,
-        }
-        for user in users
-    ]
+    return list(await db_session.scalars(select(User)))
 
 
 @get("/users/create")
 async def create_users(
     db_session: AsyncSession,
-    db_engine: AsyncEngine,
     # all project parameters are mandatory, so enfore they are not unset
     name: str = Parameter(),
     email: str = Parameter(),
@@ -298,9 +307,8 @@ async def create_objective(
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
-    objective = Objective(id=objective_id, name=name, description=description, project_id=project_id)
+    objective = Objective(id=objective_id, name=name, description=description)
 
-    await db_session.execute(project_objective.insert().values(project_id=project_id, objective_id=str(objective_id)))
     # add the new objective to the project's list of objectives
     project.objectives.append(objective)
 
@@ -311,7 +319,7 @@ async def create_objective(
     return SuccessResponse("successfully created object")
 
 
-@get(("/projects/{project_id:str}/objectives"))
+@get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
 async def get_objectives_for_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
@@ -327,7 +335,9 @@ async def get_objectives_for_project(
         select(Objective)
         .join(project_objective)
         .where(project_objective.c.project_id == project_id)
-        .options(selectinload(Objective.children))  # eagerly load all Objective children
+        .options(
+            selectinload(Objective.children)
+        )  # eagerly load all Objective children
     )
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
@@ -335,7 +345,7 @@ async def get_objectives_for_project(
     return objectives
 
 
-@get("/objectives/{objective_id:str}/key_results")
+@get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
 async def get_key_results_for_objective(
     db_session: AsyncSession,
     objective_id: str = Parameter(),
@@ -349,13 +359,13 @@ async def get_key_results_for_objective(
 
     # retrieve all key results related to the objective
     key_results = await db_session.scalars(
-        select(KeyResult).join(Objective).where(KeyResult.objective_id == objective_id)
+        select(KeyResult).where(KeyResult.objective_id == objective_id)
     )
 
     return list(key_results)
 
 
-@get("/projects/{project_id:str}/users")
+@get("/projects/{project_id:str}/users", return_dto=UserReadDTO)
 async def get_users_for_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
@@ -368,14 +378,19 @@ async def get_users_for_project(
     """
 
     # retrieve all users related to the project
-    users = await db_session.scalars(select(User).join(UserProject).where(UserProject.project_id == project_id))
+    users = await db_session.scalars(
+        select(User).join(UserProject).where(UserProject.project_id == project_id)
+    )
 
     return list(users)
 
 
 @post("/projects/{project_id:str}/users/{user_id:str}")
 async def add_user_to_project(
-    db_session: AsyncSession, project_id: str = Parameter(), user_id: str = Parameter(), role: str = Parameter()
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    user_id: str = Parameter(),
+    role: str = Parameter(),
 ) -> SuccessResponse:
     """
     Add a user with a role to a project.
@@ -398,7 +413,13 @@ async def add_user_to_project(
 
     # check if user already in project
     already_in_project = await db_session.scalar(
-        select(exists().where(and_(UserProject.user_id == user_id, UserProject.project_id == project_id)))
+        select(
+            exists().where(
+                and_(
+                    UserProject.user_id == user_id, UserProject.project_id == project_id
+                )
+            )
+        )
     )
     if already_in_project:
         raise NotFoundException("User already assigned to this project")
@@ -406,19 +427,25 @@ async def add_user_to_project(
     user_project_id = uuid.uuid4()
 
     # create new entry
-    user_project = UserProject(id=user_project_id, project_id=project_id, user_id=user_id, role=role)
+    user_project = UserProject(
+        id=user_project_id, project_id=project_id, user_id=user_id, role=role
+    )
 
     # add the project+role the the users list of userprojects
     user.projects.append(user_project)
 
     await db_session.commit()
 
-    return SuccessResponse(message=f"User {user.name} added to project {project.name} with role {role}")
+    return SuccessResponse(
+        message=f"User {user.name} added to project {project.name} with role {role}"
+    )
 
 
 @post("projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
-    db_session: AsyncSession, project_id: str = Parameter(), objective_id: str = Parameter()
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    objective_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Add an objective to a project
@@ -443,7 +470,9 @@ async def add_objective_to_project(
 
     await db_session.commit()
 
-    return SuccessResponse(message=f"Objective {objective.name} successfully linked with project {project.name}")
+    return SuccessResponse(
+        message=f"Objective {objective.name} successfully linked with project {project.name}"
+    )
 
 
 # Create a session config that is linked to an SQLite database.

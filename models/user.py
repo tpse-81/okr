@@ -24,14 +24,10 @@ class User(base.UUIDBase):
 
     # N->N relationship with Project
     projects: Mapped[list["UserProject"]] = relationship(
-        "UserProject",
-        cascade="all, delete-orphan",
-        lazy="selectin"
+        "UserProject", cascade="all, delete-orphan", lazy="selectin"
     )
 
     # N->N relationship with Task
-    objectives: Mapped[list["Task"]] = relationship(
-        "Task",
-        secondary=user_task,
-        lazy="selectin"
+    tasks: Mapped[list["Task"]] = relationship(
+        "Task", secondary=user_task, lazy="selectin"
     )
