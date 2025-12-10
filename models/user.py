@@ -30,7 +30,7 @@ class User(base.UUIDBase):
     )
 
     # N->N relationship with Task
-    objectives: Mapped[list["Task"]] = relationship(
+    tasks: Mapped[list["Task"]] = relationship(
         "Task",
         secondary=user_task,
         lazy="selectin"

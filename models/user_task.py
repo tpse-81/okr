@@ -4,8 +4,8 @@ from advanced_alchemy.base import orm_registry
 
 user_task = Table(
     """
-    Association table for linking projects and objectives (many-to-many relationship)
-    where the combination of project_id and objective_id is unique
+    Association table for linking users and tasks (many-to-many relationship)
+    where the combination of user_id and task_id is unique
     """
 
     "user_task",

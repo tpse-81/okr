@@ -17,7 +17,6 @@ class Objective(base.UUIDBase):
     # Table columns/attributes
     name: Mapped[str]
     description: Mapped[str]
-    project_id: Mapped[str]
 
     # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
