@@ -17,19 +17,13 @@ class Objective(base.UUIDBase):
     # Table columns/attributes
     name: Mapped[str]
     description: Mapped[str]
-    project_id: Mapped[str]
 
     # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("objectives.id", ondelete="SET NULL"),
-        nullable=True
-        )
-    
-    # 1->N relationship with Objective children
-    children: Mapped[list["Objective"]] = relationship(
-        "Objective",
-        cascade="all, delete-orphan",
-        lazy="selectin"
+        ForeignKey("objectives.id", ondelete="SET NULL"), nullable=True
     )
 
-   
+    # 1->N relationship with Objective children
+    children: Mapped[list["Objective"]] = relationship(
+        "Objective", cascade="all, delete-orphan", lazy="selectin"
+    )

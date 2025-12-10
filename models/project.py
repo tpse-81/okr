@@ -22,7 +22,5 @@ class Project(base.UUIDBase):
 
     # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(
-        "Objective",
-        secondary=project_objective,
-        lazy="selectin"
+        "Objective", secondary=project_objective, lazy="selectin"
     )
