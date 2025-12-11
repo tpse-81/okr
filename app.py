@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar import Litestar, get, patch, post
+from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
@@ -113,6 +113,26 @@ async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     return list(await db_session.scalars(select(KeyResult)))
 
 
+@post("/key_results/{key_result_id:str}/delete")
+async def delete_key_result(
+    db_session: AsyncSession,
+    key_result_id: str
+) -> SuccessResponse:
+    """
+    Delete a key result and all its tasks
+
+    param key_result_id: the ID of the key result to delete
+    """
+    key_result = await db_session.get(KeyResult, key_result_id)
+    if key_result is None:
+        raise NotFoundException("Key result not found")
+    
+    await db_session.delete(key_result)
+    await db_session.commit()
+
+    return SuccessResponse("Key result deleted successfully")
+
+
 @get("/objectives", return_dto=ObjectiveReadDTO)
 async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     """
@@ -128,7 +148,27 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     return list(objectives)
 
 
-@get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
+@post("/objectives/{objective_id:str}/delete")
+async def delete_objective(
+    db_session: AsyncSession,
+    objective_id: str
+) -> SuccessResponse:
+    """
+    Delete an objective and all its Key results and tasks
+
+    param objective_id: the ID of the objective to delete
+    """
+    objective = await db_session.get(Objective, objective_id)
+    if objective is None:
+        raise NotFoundException("objective not found")
+    
+    await db_session.delete(objective)
+    await db_session.commit()
+
+    return SuccessResponse("objective deleted successfully")
+
+
+@get("/key_results/{key_result_id:uuid}/tasks", return_dto=TaskReadDTO)
 async def get_tasks_from_key_result(
     key_result_id: str, db_session: AsyncSession
 ) -> list[Task]:
@@ -143,6 +183,26 @@ async def get_tasks_from_key_result(
         select(Task).where(Task.key_result_id == key_result_id)
     )
     return list(result)
+
+
+@post("/tasks/{task_id:str}/delete")
+async def delete_task(
+    db_session: AsyncSession,
+    task_id: str
+) -> SuccessResponse:
+    """
+    Delete a single task
+
+    param task_id: the ID of the task to delete
+    """
+    task = await db_session.get(Task, task_id)
+    if task is None:
+        raise NotFoundException("objective not found")
+    
+    await db_session.delete(task)
+    await db_session.commit()
+
+    return SuccessResponse("task deleted successfully")
 
 
 @post("/key_results/{key_result_id:str}/tasks", dto=TaskWriteDTO, return_dto=None)
@@ -204,6 +264,49 @@ async def create_project(
     await db_session.commit()
 
     return SuccessResponse("successfully created project")
+
+
+@post("/projects/{project_id:str}/delete")
+async def delete_project(
+    db_session: AsyncSession,
+    project_id: str,
+) -> SuccessResponse:
+    """
+    Delete a project and automatically delete all objectives
+    that are not linked to any other project.
+
+    param project_id: the ID of the project to delete
+    """
+
+    project = await db_session.get(Project, project_id)
+    if project is None:
+        raise NotFoundException("Project not found")
+    
+    objectives_for_project = await db_session.scalars(
+        select(Objective)
+        .join(project_objective)
+        .where(project_objective.c.project_id == project_id)
+    )
+    objectives_for_project = list(objectives_for_project)
+
+    for objective in objectives_for_project:
+        has_other_project = await db_session.scalar(
+            select(
+                exists().where(
+                    and_(
+                        project_objective.c.objective_id == objective.id,
+                        project_objective.c.project_id != project_id,
+                    )
+                )
+            )
+        )
+        if not has_other_project:
+            await db_session.delete(objective)
+    
+    await db_session.delete(project)
+    await db_session.commit()
+
+    return SuccessResponse("project deleted successfully")
 
 
 @get("/users", return_dto=UserReadDTO)
@@ -617,6 +720,10 @@ authenticated_router = Router(
         add_objective_to_objective,
         change_password,
         get_new_token,
+        delete_project,
+        delete_objective,
+        delete_key_result,
+        delete_task,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
