@@ -1,16 +1,4 @@
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
-from litestar.testing import TestClient
-import pytest
-
-from app import app
-
-app.debug = True
-
-
-@pytest.fixture()
-def client():
-    with TestClient(app=app) as client:
-        yield client
 
 
 # Test 1: Query objectives by project ID

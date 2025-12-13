@@ -1,5 +1,14 @@
 from litestar.status_codes import HTTP_200_OK
+from litestar.testing import TestClient
 import pytest
+
+from app import app
+
+
+@pytest.fixture()
+def client():
+    with TestClient(app=app) as client:
+        yield client
 
 
 # ----------------
