@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar import Litestar, get, post
+from litestar import Litestar, get, patch, post
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
@@ -26,7 +26,7 @@ from models.key_result import KeyResult
 from models.user import User
 from models.task import Task
 from models.project_objective import project_objective
-from models.user_project import UserProject
+from models.user_project import UserProject, UserRole
 
 from dto.read_dto import (
     ProjectReadDTO,
@@ -51,7 +51,7 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
 
-from responses import SuccessResponse
+from responses import SuccessResponse, UserRoleResponse
 
 
 async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
@@ -390,7 +390,7 @@ async def add_user_to_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
-    role: str = Parameter(),
+    role: UserRole = Parameter(),
 ) -> SuccessResponse:
     """
     Add a user with a role to a project.
@@ -471,22 +471,22 @@ async def add_objective_to_project(
     )
 
 
-@post("/projects/{project_id:str}/users/{user_id:str}/role")
+@patch("/projects/{project_id:str}/users/{user_id:str}/role")
 async def change_user_role(
     db_session: AsyncSession,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
-    role: str = Parameter()
+    role: UserRole = Parameter(),
 ) -> SuccessResponse:
     """
-    Changes the role of a user in a project 
-    
+    Changes the role of a user in a project
+
     param project_id: the ID of the project
     param user_id: the ID of the user
     param role: the new role that will be changed into
     return: whether the role was successfully changed
     """
-     # check if project exists
+    # check if project exists
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
@@ -495,49 +495,56 @@ async def change_user_role(
     user = await db_session.get(User, user_id)
     if not user:
         raise NotFoundException("User not found")
-    
+
     # load the UserProject-entry
     stmt = select(UserProject).where(
-        UserProject.project_id == project_id,
-        UserProject.user_id == user_id   
+        UserProject.project_id == project_id, UserProject.user_id == user_id
     )
     result = await db_session.execute(stmt)
     user_project = result.scalars().one_or_none()
 
     if not user_project:
         raise NotFoundException("User is not assigned to this project")
-    
+
     # change the role
     user_project.role = role
 
     await db_session.commit()
 
-    return SuccessResponse(
-        message=f"Role successfully updated"
-    )
+    return SuccessResponse("Role successfully updated")
 
 
 @get("/projects/{project_id:str}/users/{user_id:str}/role")
 async def get_user_role(
-    db_session: AsyncSession,
-    project_id: str = Parameter(),
-    user_id: str = Parameter()
-) -> str | None:
+    db_session: AsyncSession, project_id: str = Parameter(), user_id: str = Parameter()
+) -> UserRoleResponse:
     """
     Gets the role for a user in a project
-    
+
     param project_id: the ID of the project
     param user_id: the ID of the user
     return: the role of the user in the project
     """
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if user exists
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise NotFoundException("User not found")
+
     stmt = select(UserProject.role).where(
-        UserProject.user_id == user_id,
-        UserProject.project_id == project_id
+        UserProject.user_id == user_id, UserProject.project_id == project_id
     )
+    role = await db_session.scalar(stmt)
+    if not role:
+        raise NotFoundException("User is not part of the project")
 
-    return await db_session.scalar(stmt)
+    return UserRoleResponse(role)
 
-    
+
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
@@ -566,7 +573,7 @@ authenticated_router = Router(
         add_user_to_project,
         add_objective_to_project,
         change_user_role,
-        get_user_role
+        get_user_role,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
