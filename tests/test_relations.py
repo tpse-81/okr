@@ -92,7 +92,7 @@ def test_query_users_by_project(auth_client):
     u2 = create_user(auth_client, name="U2")
 
     # assign both users to the same project
-    auth_client.post(f"/projects/{p}/users/{u1}?role=lead")
+    auth_client.post(f"/projects/{p}/users/{u1}?role=leader")
     auth_client.post(f"/projects/{p}/users/{u2}?role=member")
 
     # check if both users can be queried
