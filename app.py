@@ -471,6 +471,73 @@ async def add_objective_to_project(
     )
 
 
+@post("/projects/{project_id:str}/users/{user_id:str}/role")
+async def change_user_role(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    user_id: str = Parameter(),
+    role: str = Parameter()
+) -> SuccessResponse:
+    """
+    Changes the role of a user in a project 
+    
+    param project_id: the ID of the project
+    param user_id: the ID of the user
+    param role: the new role that will be changed into
+    return: whether the role was successfully changed
+    """
+     # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if user exists
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise NotFoundException("User not found")
+    
+    # load the UserProject-entry
+    stmt = select(UserProject).where(
+        UserProject.project_id == project_id,
+        UserProject.user_id == user_id   
+    )
+    result = await db_session.execute(stmt)
+    user_project = result.scalars().one_or_none()
+
+    if not user_project:
+        raise NotFoundException("User is not assigned to this project")
+    
+    # change the role
+    user_project.role = role
+
+    await db_session.commit()
+
+    return SuccessResponse(
+        message=f"Role successfully updated"
+    )
+
+
+@get("/projects/{project_id:str}/users/{user_id:str}/role")
+async def get_user_role(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    user_id: str = Parameter()
+) -> str | None:
+    """
+    Gets the role for a user in a project
+    
+    param project_id: the ID of the project
+    param user_id: the ID of the user
+    return: the role of the user in the project
+    """
+    stmt = select(UserProject.role).where(
+        UserProject.user_id == user_id,
+        UserProject.project_id == project_id
+    )
+
+    return await db_session.scalar(stmt)
+
+    
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
@@ -498,6 +565,8 @@ authenticated_router = Router(
         get_users_for_project,
         add_user_to_project,
         add_objective_to_project,
+        change_user_role,
+        get_user_role
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
