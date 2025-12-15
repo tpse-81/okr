@@ -1,5 +1,5 @@
 from litestar.status_codes import (
-    HTTP_200_OK,
+    HTTP_201_CREATED,
 )
 
 from app import app
@@ -8,38 +8,37 @@ app.debug = True
 
 
 def create_project(client):
-    project = client.get(
-        "/projects/create",
-        params={
+    project = client.post(
+        "/projects",
+        json={
             "name": "name",
             "deadline": 5,
             "creation_date": 5,
-            "done": "false",
+            "done": False,
         },
     )
-    assert project.status_code == HTTP_200_OK
+    assert project.status_code == HTTP_201_CREATED
     project = client.get("/projects")
     return project.json()[0].get("id")
 
 
 def create_objective(client, project_id, name="name", description="description"):
-    objective = client.get(
-        "/objectives/create",
-        params={
+    objective = client.post(
+        f"/projects/{project_id}/objectives",
+        json={
             "name": name,
             "description": description,
-            "project_id": str(project_id),
         },
     )
-    assert objective.status_code == HTTP_200_OK
+    assert objective.status_code == HTTP_201_CREATED
     objective = client.get("/objectives")
     return objective.json()[0].get("id")
 
 
 def create_key_result(client, project_id, objective_id):
-    key_result = client.get(
-        "/key_results/create",
-        params={
+    key_result = client.post(
+        "/key_results",
+        json={
             "project_id": project_id,
             "objective_id": objective_id,
             "description": "description",
@@ -47,31 +46,31 @@ def create_key_result(client, project_id, objective_id):
             "end_value": 10,
         },
     )
-    assert key_result.status_code == HTTP_200_OK
+    assert key_result.status_code == HTTP_201_CREATED
     key_result = client.get("/key_results")
     return key_result.json()[0].get("id")
 
 
 def create_task(client, key_result_id):
-    task = client.get(
-        f"/key_results/{key_result_id}/tasks/create",
-        params={"description": "description", "task_state": "open"},
+    task = client.post(
+        f"/key_results/{key_result_id}/tasks",
+        json={"description": "description", "task_state": "open"},
     )
-    assert task.status_code == HTTP_200_OK
+    assert task.status_code == HTTP_201_CREATED
     task = client.get(f"/key_results/{key_result_id}/tasks")
     return task.json()[0].get("id")
 
 
 def create_user(client, name="name", email=None):
     email = email or f"{name.lower()}@test.com"
-    user = client.get(
+    user = client.post(
         "/users/create",
-        params={
+        json={
             "name": name,
             "email": email,
             "password": "testpassword123",
         },
     )
-    assert user.status_code == HTTP_200_OK
+    assert user.status_code == HTTP_201_CREATED
     user = client.get("/users")
     return user.json()[-1]["id"]

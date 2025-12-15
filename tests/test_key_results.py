@@ -1,10 +1,12 @@
 import uuid
 
+from litestar import Litestar
 from litestar.testing import TestClient
 
 from utils import create_objective, create_project
 from litestar.status_codes import (
     HTTP_200_OK,
+    HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_401_UNAUTHORIZED,
@@ -15,7 +17,7 @@ from app import app
 app.debug = True
 
 
-def test_key_result_check(auth_client):
+def test_key_result_check(auth_client: TestClient[Litestar]):
     project_id = create_project(auth_client)
     objective_id = create_objective(auth_client, project_id)
 
@@ -26,8 +28,8 @@ def test_key_result_check(auth_client):
         "start_value": 5,
         "end_value": 5,
     }
-    response = auth_client.get("/key_results/create", params=params)
-    assert response.status_code == HTTP_200_OK
+    response = auth_client.post("/key_results", json=params)
+    assert response.status_code == HTTP_201_CREATED
     assert response.json() == {"message": "successfully created key result"}
 
     response = auth_client.get("/key_results")
@@ -51,7 +53,7 @@ def test_empty_key_result_check(auth_client):
         "start_value": None,
         "end_value": 5,
     }
-    response = auth_client.get("/key_results/create", params=params)
+    response = auth_client.post("/key_results", json=params)
     assert response.status_code == HTTP_400_BAD_REQUEST
 
     params = {
@@ -61,7 +63,7 @@ def test_empty_key_result_check(auth_client):
         "start_value": 5,
         "end_value": 5,
     }
-    response = auth_client.get("/key_results/create", params=params)
+    response = auth_client.post("/key_results", json=params)
     assert response.status_code == HTTP_400_BAD_REQUEST
 
     response = auth_client.get("/key_results")
@@ -81,7 +83,7 @@ def test_key_result_with_fake_project(auth_client):
         "start_value": 5,
         "end_value": 5,
     }
-    response = auth_client.get("/key_results/create", params=params)
+    response = auth_client.post("/key_results", json=params)
     assert response.status_code == HTTP_404_NOT_FOUND
 
 
@@ -89,9 +91,9 @@ def test_key_result_check_unauthorized(auth_client):
     project_id = create_project(auth_client)
     objective_id = create_objective(auth_client, project_id)
     with TestClient(app=app) as client:
-        response = client.get(
-            "/key_results/create",
-            params={
+        response = client.post(
+            "/key_results",
+            json={
                 "project_id": str(project_id),
                 "objective_id": str(objective_id),
                 "description": "description",
