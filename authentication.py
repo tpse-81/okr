@@ -47,17 +47,10 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
         if not auth_header:
             raise NotAuthorizedException()
 
-        try:
-            user_info: dict[str, Any] = jwt.decode(
-                auth_header, JWT_SECRET, algorithms=[JWT_ALGORITHM]
-            )
-        except jwt.DecodeError as e:
-            raise NotAuthorizedException(e)
+        jwt_user = verify_jwt(auth_header)
+        if not jwt_user:
+            raise NotAuthorizedException()
 
-        # the expiration time is not part of the user info
-        # hence it must be removed in order to create a JwtUser
-        del user_info["exp"]
-        jwt_user: JwtUser = JwtUser(**user_info)
         user_id = str(jwt_user.id)
 
         sqlalchemy_plugin = connection.app.plugins.get(SQLAlchemyPlugin)
@@ -112,23 +105,40 @@ async def login_handler(
 
     # TODO: verify 2FA code
 
-    jwt_token = create_jwt(user)
+    jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
     return Response(
         content=LoginResponse(jwt_token=jwt_token),
         headers={"Authorization": jwt_token},
     )
 
 
-def create_jwt(user: User) -> str:
+def create_jwt(user: User, validity_hours: int) -> str:
     jwt_user = JwtUser(id=str(user.id), name=user.name, email=user.email)
 
     jwt_payload = jwt_user.__dict__
     # set expiration time - automatically gets handled when `jwt.decode` is called
-    jwt_payload["exp"] = datetime.now(tz=timezone.utc) + timedelta(
-        hours=JWT_VALIDITY_DURATION_HOURS
-    )
+    jwt_payload["exp"] = datetime.now(tz=timezone.utc) + timedelta(hours=validity_hours)
 
     return jwt.encode(payload=jwt_payload, key=JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_jwt(jwt_token: str) -> JwtUser | None:
+    try:
+        user_info: dict[str, Any] = jwt.decode(
+            jwt_token, JWT_SECRET, algorithms=[JWT_ALGORITHM]
+        )
+    except jwt.DecodeError:
+        return None
+    except jwt.ExpiredSignatureError:
+        # possible TODO: inform user that session has expired
+        return None
+
+    # the expiration time is not part of the user info
+    # hence it must be removed in order to create a JwtUser
+    del user_info["exp"]
+    jwt_user: JwtUser = JwtUser(**user_info)
+
+    return jwt_user
 
 
 def hash_password(password: str) -> str:

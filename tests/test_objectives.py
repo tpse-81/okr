@@ -1,6 +1,6 @@
 from litestar.testing import TestClient
 
-from utils import *
+from utils import create_project
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_400_BAD_REQUEST,
