@@ -1,6 +1,6 @@
+from litestar import Litestar
 import pytest
 from litestar.status_codes import (
-    HTTP_200_OK,
     HTTP_201_CREATED,
 )
 from litestar.testing import TestClient
@@ -15,15 +15,15 @@ def client():
 
 @pytest.fixture(scope="module")
 def test_user(client):
-    response = client.get(
+    response = client.post(
         "/users/create",
-        params={
+        json={
             "name": "Test User",
             "email": "test@example.com",
             "password": "testpassword123",
         },
     )
-    assert response.status_code == HTTP_200_OK
+    assert response.status_code == HTTP_201_CREATED
     return {
         "email": "test@example.com",
         "password": "testpassword123",
@@ -45,6 +45,6 @@ def auth_token(client, test_user):
 
 
 @pytest.fixture
-def auth_client(client, auth_token):
+def auth_client(client, auth_token) -> TestClient[Litestar]:
     client.headers.update({"Authorization": auth_token})
     return client

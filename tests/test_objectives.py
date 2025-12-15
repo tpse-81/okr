@@ -3,6 +3,7 @@ from litestar.testing import TestClient
 from utils import create_project
 from litestar.status_codes import (
     HTTP_200_OK,
+    HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
 )
@@ -18,11 +19,10 @@ def test_objective_check(auth_client):
     params = {
         "name": "name",
         "description": "description",
-        "project_id": str(project_id),
     }
 
-    response = auth_client.get("/objectives/create", params=params)
-    assert response.status_code == HTTP_200_OK
+    response = auth_client.post(f"/projects/{project_id}/objectives", json=params)
+    assert response.status_code == HTTP_201_CREATED
     assert response.json() == {"message": "successfully created objective"}
 
     response = auth_client.get("/objectives")
@@ -33,7 +33,9 @@ def test_objective_check(auth_client):
 
 
 def test_empty_project_check(auth_client):
-    response = auth_client.get("/objectives/create?name=name&description=5&project_id=")
+    response = auth_client.post(
+        "/projects/nonexistentid/objectives", json={"name": "name", "description": 5}
+    )
     assert response.status_code == HTTP_400_BAD_REQUEST
 
     response = auth_client.get("/objectives")
@@ -44,12 +46,11 @@ def test_empty_project_check(auth_client):
 def test_objective_check_unauthorized(auth_client):
     project_id = create_project(auth_client)
     with TestClient(app=app) as client:
-        response = client.get(
-            "/objectives/create",
-            params={
+        response = client.post(
+            f"/projects/{project_id}/objectives",
+            json={
                 "name": "name",
                 "description": "description",
-                "project_id": str(project_id),
             },
         )
         assert response.status_code == HTTP_401_UNAUTHORIZED

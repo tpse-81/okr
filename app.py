@@ -1,10 +1,10 @@
+from dataclasses import dataclass
 from litestar import Litestar, get, post
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
 from litestar.static_files import create_static_files_router
-from litestar.exceptions import NotFoundException
-from litestar.exceptions import HTTPException
+from litestar.exceptions import ClientException, NotFoundException
 
 # Importing the database models
 from authentication import (
@@ -13,12 +13,17 @@ from authentication import (
     hash_password,
     login_handler,
 )
+from dto.write_dto import (
+    KeyResultWriteDTO,
+    ObjectiveWriteDTO,
+    ProjectWriteDTO,
+    TaskWriteDTO,
+)
 from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
 from models.task import Task
-from models.task import TaskState
 from models.project_objective import project_objective
 from models.user_project import UserProject
 
@@ -137,12 +142,11 @@ async def get_tasks_from_key_result(
     return list(result)
 
 
-@get("/key_results/{key_result_id:str}/tasks/create")
+@post("/key_results/{key_result_id:str}/tasks", dto=TaskWriteDTO, return_dto=None)
 async def create_task_for_key_result(
     db_session: AsyncSession,
+    data: Task,
     key_result_id: str = Parameter(),
-    description: str = Parameter(),
-    task_state: TaskState = Parameter(default=TaskState.OPEN),
 ) -> SuccessResponse:
     """
     Create a new task for a given key result.
@@ -157,8 +161,8 @@ async def create_task_for_key_result(
 
     task = Task(
         id=task_id,
-        description=description,
-        task_state=task_state,
+        description=data.description,
+        task_state=data.task_state,
         key_result_id=key_result_id,
     )
 
@@ -169,21 +173,16 @@ async def create_task_for_key_result(
     return SuccessResponse("successfully created task")
 
 
-@get("/projects/create")
+@post("/projects", dto=ProjectWriteDTO, return_dto=None)
 async def create_project(
     db_session: AsyncSession,
     # all project parameters are mandatory, so enforce they're not unset
-    name: str = Parameter(),
-    deadline: int = Parameter(),
-    creation_date: int = Parameter(),
-    done: bool = Parameter(),
+    data: Project,
 ) -> SuccessResponse:
     """
     Create a new project.
 
-    param name: the name of the project to create
-    param deadline: the deadline as UNIX timestamp
-    param creation_date: the creation_date as UNIX timestamp
+    param data: the project information to store
     return: whether the project was successfully created
     """
 
@@ -191,10 +190,10 @@ async def create_project(
     project_id = uuid.uuid4()
     project = Project(
         id=project_id,
-        name=name,
-        deadline=deadline,
-        creation_date=creation_date,
-        done=done,
+        name=data.name,
+        deadline=data.deadline,
+        creation_date=data.creation_date,
+        done=data.done,
     )
 
     # create new database entry for project with parameters from URL
@@ -214,30 +213,32 @@ async def get_users(db_session: AsyncSession) -> list[User]:
     return list(await db_session.scalars(select(User)))
 
 
-@get("/users/create")
-async def create_users(
-    db_session: AsyncSession,
-    # all project parameters are mandatory, so enfore they are not unset
-    name: str = Parameter(),
-    email: str = Parameter(),
-    password: str = Parameter(),
+@dataclass
+class CreateUserRequest:
+    name: str
+    email: str
+    password: str
+
+
+# TODO: replace with path "/users" once this route is part of the authentication router group
+@post("/users/create")
+async def create_user(
+    db_session: AsyncSession, data: CreateUserRequest
 ) -> SuccessResponse:
     """
     Create a new user.
 
-    param name: user's name
-    param email: user's email
-    param password: users plain text password, will be stored in hash
+    param data: the user data to create a new user from
     return: whether the user was successfully created
     """
     # randomly generate a user_id
     user_id = uuid.uuid4()
-    password_hash = hash_password(password)
+    password_hash = hash_password(data.password)
     two_fa_secret = generate_twofa_secret()
     user = User(
         id=user_id,
-        name=name,
-        email=email,
+        name=data.name,
+        email=data.email,
         password_hash=password_hash,
         two_fa_secret=two_fa_secret,
     )
@@ -248,41 +249,35 @@ async def create_users(
     return SuccessResponse("successfully created user")
 
 
-@get("/key_results/create")
+@post("/key_results", dto=KeyResultWriteDTO, return_dto=None)
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
-    project_id: str = Parameter(),
-    objective_id: str = Parameter(),
-    description: str = Parameter(),
-    start_value: float = Parameter(),
-    end_value: float = Parameter(),
+    data: KeyResult,
 ) -> SuccessResponse:
     """
     Create a new key result.
 
-    param objective_id: the ID of the objective this key result belongs to
-    param description: the description of the key result
-    param start_value: the current value at the start of the OKR
-    param end_value: the end value that is the goal of the key result
+    param data: the key result to create
+    return: a JSON object containing a success message
     """
-    if not project_id:
-        raise HTTPException(status_code=400, detail="invalid project id")
-    if not objective_id:
-        raise HTTPException(status_code=400, detail="invalid objective id")
+    if not data.project_id:
+        raise ClientException("invalid project id")
+    if not data.objective_id:
+        raise ClientException("invalid objective id")
 
-    if not await project_exists(db_session, project_id):
+    if not await project_exists(db_session, data.project_id):
         raise NotFoundException("Project doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        project_id=project_id,
-        objective_id=objective_id,
-        description=description,
-        start_value=start_value,
-        end_value=end_value,
+        project_id=data.project_id,
+        objective_id=data.objective_id,
+        description=data.description,
+        start_value=data.start_value,
+        end_value=data.end_value,
     )
 
     # create new database entry for key result with parameters from URL
@@ -292,24 +287,18 @@ async def create_key_result(
     return SuccessResponse("successfully created key result")
 
 
-@get("/objectives/create")
+@post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
 async def create_objective(
-    db_session: AsyncSession,
-    # all project parameters are mandatory, so enforce they're not unset
-    name: str = Parameter(),
-    description: str = Parameter(),
-    project_id: str = Parameter(),
+    db_session: AsyncSession, data: Objective, project_id: str = Parameter()
 ) -> SuccessResponse:
     """
     Create a new objective.
 
-    param name: the name of the objective to create
-    param description: the description of the objective
-    param project_id: the ID of the related project
+    param data: the objective to create
     return: whether the objective was successfully created
     """
     if not project_id:
-        raise HTTPException(status_code=400, detail="invalid id")
+        raise ClientException("invalid id")
     # check if the project id exists
     project = await db_session.get(Project, project_id)
     if project is None:
@@ -317,7 +306,7 @@ async def create_objective(
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
-    objective = Objective(id=objective_id, name=name, description=description)
+    objective = Objective(id=objective_id, name=data.name, description=data.description)
 
     # add the new objective to the project's list of objectives
     project.objectives.append(objective)
@@ -352,7 +341,7 @@ async def get_objectives_for_project(
     result = await db_session.execute(stmt)
     objectives = result.scalars().all()  # list of all Objectives
 
-    return objectives
+    return list(objectives)
 
 
 @get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
@@ -434,12 +423,8 @@ async def add_user_to_project(
     if already_in_project:
         raise NotFoundException("User already assigned to this project")
 
-    user_project_id = uuid.uuid4()
-
     # create new entry
-    user_project = UserProject(
-        id=user_project_id, project_id=project_id, user_id=user_id, role=role
-    )
+    user_project = UserProject(project_id=project_id, user_id=user_id, role=role)
 
     # add the project+role the the users list of userprojects
     user.projects.append(user_project)
@@ -527,7 +512,7 @@ public_router = Router(
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
         # TODO: creating users should not be possible without authentication!
-        create_users,
+        create_user,
     ],
     tags=["public"],
 )

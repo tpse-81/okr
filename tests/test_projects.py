@@ -1,5 +1,6 @@
 from litestar.status_codes import (
     HTTP_200_OK,
+    HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
 )
@@ -9,9 +10,9 @@ from app import app
 
 
 def test_project_check(auth_client):
-    response = auth_client.get(
-        "/projects/create",
-        params={
+    response = auth_client.post(
+        "/projects",
+        json={
             "name": "Testprojekt",
             "deadline": 5,
             "creation_date": 10,
@@ -19,7 +20,7 @@ def test_project_check(auth_client):
         },
     )
 
-    assert response.status_code == HTTP_200_OK
+    assert response.status_code == HTTP_201_CREATED
     assert response.json()["message"] == "successfully created project"
 
     response = auth_client.get("/projects")
@@ -32,8 +33,8 @@ def test_project_check(auth_client):
 
 
 def test_empty_project_check(auth_client):
-    response = auth_client.get(
-        "/projects/create",
+    response = auth_client.post(
+        "/projects",
         params={
             "name": "Testprojekt",
             "deadline": 5,
@@ -47,9 +48,9 @@ def test_empty_project_check(auth_client):
 
 def test_project_check_unauthorized():
     with TestClient(app=app) as client:
-        response = client.get(
-            "/projects/create",
-            params={
+        response = client.post(
+            "/projects",
+            json={
                 "name": "Testprojekt",
                 "deadline": 5,
                 "creation_date": 10,
