@@ -21,6 +21,10 @@ class Project(base.UUIDBase):
     name: Mapped[str]
     creation_date: Mapped[datetime]
     deadline: Mapped[datetime]
+    archive_on: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False
+    )
 
     # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(

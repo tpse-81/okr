@@ -418,6 +418,20 @@ async def get_objectives_for_project(
     return: a JSON list of objectives related to the given project
     """
 
+    return await fetch_objectives_for_project(db_session, project_id)
+
+
+async def fetch_objectives_for_project(
+        db_session: AsyncSession,
+        project_id: str
+) -> list[Objective]:
+    """
+    Fetch all objectives for a given project ID
+    
+    param project_id: the ID of the project
+    return: list of Objective objects linked to the project
+    """
+
     stmt = (
         select(Objective)
         .join(project_objective)
@@ -427,9 +441,7 @@ async def get_objectives_for_project(
         )  # eagerly load all Objective children
     )
     result = await db_session.execute(stmt)
-    objectives = result.scalars().all()  # list of all Objectives
-
-    return list(objectives)
+    return result.scalars().all()  # list of all Objectives
 
 
 @get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
@@ -668,6 +680,71 @@ async def add_objective_to_objective(
         await db_session.commit()
 
     return SuccessResponse("Objective linked successfully")
+    
+
+@patch("/projects/{project_id:str}/archive")
+async def toggle_archive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter()
+) -> SuccessResponse:
+    """
+    Toggles the boolean attribute archive_on of a project
+
+    param project_id: the ID of the project
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+    # toggle archive_on
+    project.archive_on = not project.archive_on
+
+    # check for the linked objectives
+    await toggle_archive_objective(
+        db_session,
+        project_id
+    )
+
+    await db_session.commit()
+
+    return SuccessResponse(
+        message=f"Archive status toggled to {project.archive_on}"
+    )
+
+
+async def toggle_archive_objective(
+        db_session: AsyncSession,
+        project_id: str
+) -> None:
+    """
+    Helper function of toggle_archive_project
+    Checks for each objective linked to the archived project, if they are linked to another unarchived project
+
+    param project_id: the ID of the project
+    """
+
+    # get every objective linked to the project
+    objectives = await fetch_objectives_for_project(
+        db_session,
+        project_id
+    )
+
+    for objective in objectives:
+        # check if any unarchived project is linked for each of the objectives and toggle accordingly
+        active_project_exists = (
+            select(exists().where(
+                project_objective.c.objective_id == objective.id,
+                project_objective.c.project_id == Project.id,
+                Project.archive_on == False,
+            ))
+        )
+
+        active_exists = await db_session.scalar(
+            active_project_exists
+        )
+
+        objective.archive_on = not active_exists
 
 
 # during test execution, data is written into memory and not
@@ -712,6 +789,7 @@ authenticated_router = Router(
         delete_objective,
         delete_key_result,
         delete_task,
+        toggle_archive_project  
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

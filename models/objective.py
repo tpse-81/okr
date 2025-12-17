@@ -18,6 +18,10 @@ class Objective(base.UUIDBase):
     # Table columns/attributes
     name: Mapped[str]
     description: Mapped[str]
+    archive_on: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False
+    )
 
     # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
