@@ -422,12 +422,11 @@ async def get_objectives_for_project(
 
 
 async def fetch_objectives_for_project(
-        db_session: AsyncSession,
-        project_id: str
+    db_session: AsyncSession, project_id: str
 ) -> list[Objective]:
     """
     Fetch all objectives for a given project ID
-    
+
     param project_id: the ID of the project
     return: list of Objective objects linked to the project
     """
@@ -682,10 +681,9 @@ async def add_objective_to_objective(
     return SuccessResponse("Objective linked successfully")
     
 
-@patch("/projects/{project_id:str}/archive")
+@patch("/projects/{project_id:str}/archive_toggle")
 async def toggle_archive_project(
-    db_session: AsyncSession,
-    project_id: str = Parameter()
+    db_session: AsyncSession, project_id: str = Parameter()
 ) -> SuccessResponse:
     """
     Toggles the boolean attribute archive_on of a project
@@ -701,22 +699,14 @@ async def toggle_archive_project(
     project.archive_on = not project.archive_on
 
     # check for the linked objectives
-    await toggle_archive_objective(
-        db_session,
-        project_id
-    )
+    await toggle_archive_objective(db_session, project_id)
 
     await db_session.commit()
 
-    return SuccessResponse(
-        message=f"Archive status toggled to {project.archive_on}"
-    )
+    return SuccessResponse(message=f"Archive status toggled to {project.archive_on}")
 
 
-async def toggle_archive_objective(
-        db_session: AsyncSession,
-        project_id: str
-) -> None:
+async def toggle_archive_objective(db_session: AsyncSession, project_id: str) -> None:
     """
     Helper function of toggle_archive_project
     Checks for each objective linked to the archived project, if they are linked to another unarchived project
@@ -725,27 +715,43 @@ async def toggle_archive_objective(
     """
 
     # get every objective linked to the project
-    objectives = await fetch_objectives_for_project(
-        db_session,
-        project_id
-    )
+    objectives = await fetch_objectives_for_project(db_session, project_id)
 
     for objective in objectives:
         # check if any unarchived project is linked for each of the objectives and toggle accordingly
-        active_project_exists = (
-            select(exists().where(
+        active_project_exists = select(
+            exists()
+            .where(
                 project_objective.c.objective_id == objective.id,
                 project_objective.c.project_id == Project.id,
-                Project.archive_on == False,
-            ))
+                Project.archive_on.is_(False),
+            )
+            .select_from(Project)
         )
 
-        active_exists = await db_session.scalar(
-            active_project_exists
-        )
+        active_exists = await db_session.scalar(active_project_exists)
 
         objective.archive_on = not active_exists
 
+
+@get("/projects/archived", return_dto=ProjectReadDTO)
+async def get_archived_projects(db_session: AsyncSession) -> list[Project]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Project).where(Project.archive_on.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@get("/objectives/archived", return_dto=ObjectiveReadDTO)
+async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Objective).where(Objective.archive_on.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
 
 # during test execution, data is written into memory and not
 # into the actual persistent database file!
@@ -788,8 +794,11 @@ authenticated_router = Router(
         delete_project,
         delete_objective,
         delete_key_result,
-        delete_task,
-        toggle_archive_project  
+        delete_task, 
+        get_new_token, 
+        toggle_archive_project,
+        get_archived_projects,
+        get_archived_objectives,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
