@@ -1,26 +1,23 @@
 from dataclasses import dataclass
 import secrets
-from typing import Annotated, Any, Optional
-from uuid import UUID
+from typing import Annotated, Any
 
 from argon2.exceptions import VerifyMismatchError
-from litestar import Response, post, Request
-from litestar.params import Dependency
+from litestar import Response, post
 from litestar.connection import ASGIConnection
-from litestar.exceptions import ClientException, NotAuthorizedException, HTTPException, NotFoundException
+from litestar.exceptions import ClientException, NotAuthorizedException, NotFoundException
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
 import jwt
 from argon2 import PasswordHasher
 from datetime import datetime, timezone, timedelta
 
-from litestar.params import Body, Parameter, Dependency
+from litestar.params import Body, Parameter
 from advanced_alchemy.extensions.litestar import SQLAlchemyPlugin
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User
-from models.user_task import user_task
 from responses import SuccessResponse
 
 API_KEY_HEADER = "Authorization"
