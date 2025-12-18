@@ -7,11 +7,11 @@ from app import app
 app.debug = True
 
 
-def create_project(client):
+def create_project(client, name="name"):
     project = client.post(
         "/projects",
         json={
-            "name": "name",
+            "name": name,
             "deadline": 5,
             "creation_date": 5,
             "done": False,
