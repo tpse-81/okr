@@ -543,6 +543,23 @@ async def get_user_role(
         raise NotFoundException("User is not part of the project")
 
     return UserRoleResponse(role)
+@post("/objectives/{parent_objective_id:str}/children/{objective_id:str}")
+async def add_objective_to_objective(
+    db_session: AsyncSession,
+    parent_objective_id: str = Parameter(),
+    objective_id: str = Parameter(),
+) -> SuccessResponse:
+    parent = await db_session.get(Objective, parent_objective_id)
+    child = await db_session.get(Objective, objective_id)
+
+    if not parent or not child:
+        raise NotFoundException("Objective not found")
+
+    if child.parent_id != parent_objective_id:
+        child.parent_id = parent_objective_id
+        await db_session.commit()
+
+    return SuccessResponse("Objective linked successfully")
 
 
 # Create a session config that is linked to an SQLite database.
@@ -574,6 +591,7 @@ authenticated_router = Router(
         add_objective_to_project,
         change_user_role,
         get_user_role,
+        add_objective_to_objective,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

@@ -7,23 +7,27 @@ from uuid import UUID
 
 @dataclass
 class Objective(base.UUIDBase):
-    """
-    Data model of an OKR objective.
-    """
-
     __tablename__ = "objectives"
-    # primary key
+
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    # Table columns/attributes
     name: Mapped[str]
     description: Mapped[str]
 
-    # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("objectives.id", ondelete="SET NULL"), nullable=True
     )
 
-    # 1->N relationship with Objective children
+    # parent relationship (one parent)
+    parent: Mapped["Objective | None"] = relationship(
+        "Objective",
+        back_populates="children",
+        remote_side="Objective.id",
+    )
+
+    # children relationship (one‑to‑many children)
     children: Mapped[list["Objective"]] = relationship(
-        "Objective", cascade="all, delete-orphan", lazy="selectin"
+        "Objective",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
