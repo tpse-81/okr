@@ -5,7 +5,11 @@ from typing import Annotated, Any
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post
 from litestar.connection import ASGIConnection
-from litestar.exceptions import ClientException, NotAuthorizedException, NotFoundException
+from litestar.exceptions import (
+    ClientException,
+    NotAuthorizedException,
+    NotFoundException,
+)
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
 import jwt
@@ -85,6 +89,7 @@ class LoginRequest:
 @dataclass
 class LoginResponse:
     jwt_token: str
+
 
 @dataclass
 class ChangePasswordRequest:
@@ -179,11 +184,12 @@ def generate_twofa_secret() -> str:
     """
     return secrets.token_hex(16)
 
+
 @post("/users/{user_id:str}/password/change")
 async def change_password(
-        db_session: AsyncSession,
-        user_id: str = Parameter(),
-        data: ChangePasswordRequest = Body(title="Change Password Request"),
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+    data: ChangePasswordRequest = Body(title="Change Password Request"),
 ) -> SuccessResponse:
     """
     Change a user's password.
@@ -208,10 +214,11 @@ async def change_password(
 
     return SuccessResponse("password successfully changed")
 
+
 @post("/users/{user_id:str}/auth_token")
 async def get_new_token(
-        db_session: AsyncSession,
-        user_id: str = Parameter(),
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Change a user's password.
