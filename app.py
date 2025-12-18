@@ -13,6 +13,8 @@ from authentication import (
     generate_twofa_secret,
     hash_password,
     login_handler,
+    change_password,
+    get_new_token,
 )
 from dto.write_dto import (
     KeyResultWriteDTO,
@@ -613,6 +615,8 @@ authenticated_router = Router(
         change_user_role,
         get_user_role,
         add_objective_to_objective,
+        change_password,
+        get_new_token,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
