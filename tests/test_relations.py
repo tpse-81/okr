@@ -136,3 +136,17 @@ def test_link_objective_to_project(auth_client):
     response = auth_client.get(f"/projects/{p}/objectives")
     data = response.json()
     assert o in [o["id"] for o in data]
+
+
+# Test 7: Link objective to objective
+def test_link_objective_to_objective(auth_client):
+    project_id = create_project(auth_client)
+    parent_id = create_objective(auth_client, project_id)
+    child_id = create_objective(auth_client, project_id)
+
+    response = auth_client.post(f"/objectives/{parent_id}/children/{child_id}")
+    assert response.status_code == 201
+
+    response = auth_client.get("/objectives")
+    objectives = response.json()
+    assert child_id in [child_id["id"] for child_id in objectives]
