@@ -97,7 +97,7 @@ async def login_handler(
 
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(select(User).where(User.email == data.email))
+    user_query = await db_session.execute(select(User).where(User.email == data.email.strip().lower()))
     user = user_query.scalar_one_or_none()
 
     if not user or not verify_password(user.password_hash, data.password):
