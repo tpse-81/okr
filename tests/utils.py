@@ -7,11 +7,11 @@ from app import app
 app.debug = True
 
 
-def create_project(client, name="name"):
+def create_project(client):
     project = client.post(
         "/projects",
         json={
-            "name": name,
+            "name": "name",
             "deadline": 5,
             "creation_date": 5,
             "done": False,
@@ -71,5 +71,5 @@ def create_user(client, name="name", email=None):
         },
     )
     assert user.status_code == HTTP_201_CREATED
-    users = client.get("/users").json()
-    return users[-1]["id"]
+    user = client.get("/users")
+    return user.json()[-1]["id"]
