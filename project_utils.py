@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from responses import SuccessResponse
@@ -32,34 +32,6 @@ async def get_objectives_for_project(
     )
     result = await db_session.execute(stmt)
     return result.scalars().all()  # list of all Objectives
-
-
-async def toggle_archive_objective(db_session: AsyncSession, project_id: str) -> None:
-    """
-    Helper function of toggle_archive_project
-    Checks for each objective linked to the archived project, if they are linked to another unarchived project
-
-    param project_id: the ID of the project
-    """
-
-    # get every objective linked to the project
-    objectives = await get_objectives_for_project(db_session, project_id)
-
-    for objective in objectives:
-        # check if any unarchived project is linked for each of the objectives and toggle accordingly
-        active_project_exists = select(
-            exists()
-            .where(
-                project_objective.c.objective_id == objective.id,
-                project_objective.c.project_id == Project.id,
-                Project.archive_on.is_(False),
-            )
-            .select_from(Project)
-        )
-
-        active_exists = await db_session.scalar(active_project_exists)
-
-        objective.archive_on = not active_exists
 
 
 async def change_project_deadline(

@@ -29,15 +29,10 @@ class Project(base.UUIDBase):
     name: Mapped[str]
     creation_date: Mapped[datetime]
     deadline: Mapped[datetime]
-    archive_on: Mapped[bool] = mapped_column(
-        default=False,
-        nullable=False
-    )
+    is_archived: Mapped[bool] = mapped_column(default=False, nullable=False)
     archive_reason: Mapped[ArchiveReason | None] = mapped_column(
-        SAEnum(ArchiveReason, name="archive_reason"),
-        nullable=True,
-        default=None
-        )
+        SAEnum(ArchiveReason, name="archive_reason"), nullable=True, default=None
+    )
 
     # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(

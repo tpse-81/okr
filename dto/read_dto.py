@@ -13,7 +13,7 @@ class ProjectReadDTO(SQLAlchemyDTO[Project]):
     DTO used for serializing Project models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"archive_on", "archive_reason", "objectives"})
+    config = DTOConfig(exclude={"is_archived", "archive_reason", "objectives"})
 
 
 class ObjectiveReadDTO(SQLAlchemyDTO[Objective]):
@@ -21,7 +21,7 @@ class ObjectiveReadDTO(SQLAlchemyDTO[Objective]):
     DTO used for serializing Objective models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"archive_on", "parent_id", "children", "key_results"})
+    config = DTOConfig(exclude={"is_archived", "parent_id", "children", "key_results"})
 
 
 class KeyResultReadDTO(SQLAlchemyDTO[KeyResult]):

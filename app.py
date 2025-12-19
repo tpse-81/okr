@@ -40,12 +40,7 @@ from dto.read_dto import (
     UserReadDTO,
 )
 
-
-from services.logic import (
-    get_objectives_for_project,
-    toggle_archive_objective,
-    change_project_deadline,
-)
+import project_utils
 
 from sqlalchemy import select, exists, and_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -414,7 +409,7 @@ async def create_objective(
 
 
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
-async def get_objectives_for_project_endpoint(
+async def get_objectives_for_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
 ) -> list[Objective]:
@@ -425,7 +420,7 @@ async def get_objectives_for_project_endpoint(
     return: a JSON list of objectives related to the given project
     """
 
-    return await get_objectives_for_project(db_session, project_id)
+    return await project_utils.get_objectives_for_project(db_session, project_id)
 
 
 @get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
@@ -547,6 +542,9 @@ async def add_objective_to_project(
     if objective not in project.objectives:
         project.objectives.append(objective)
 
+    if not project.is_archived:
+        objective.is_archived = False
+
     await db_session.commit()
 
     return SuccessResponse(
@@ -659,6 +657,9 @@ async def add_objective_to_objective(
             detail="The objectives are the same",
         )
 
+    if not parent.is_archived:
+        child.is_archived = False
+
     if child.parent_id != parent_objective_id:
         child.parent_id = parent_objective_id
         await db_session.commit()
@@ -670,11 +671,11 @@ async def add_objective_to_objective(
 async def archive_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
-    archive_reason: ArchiveReason = Parameter()
+    archive_reason: ArchiveReason = Parameter(),
 ) -> SuccessResponse:
     """
     Archives a project
-    
+
     param project_id: the ID of the project
     param archive_reason: the reason for archiving
     """
@@ -683,29 +684,43 @@ async def archive_project(
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
-    
-    project.archive_on = True
+
+    project.is_archived = True
     project.archive_reason = archive_reason
 
-    # check if any linked objectives need to get archived 
-    await toggle_archive_objective(db_session, project_id)
+    # check if any linked objectives need to get archived
+    # get every objective linked to the project
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+
+    for objective in objectives:
+        # check if any unarchived project is linked for each of the objectives and toggle accordingly
+        active_project_exists = await db_session.scalar(
+            select(
+                exists().where(
+                    project_objective.c.objective_id == objective.id,
+                    project_objective.c.project_id == Project.id,
+                    Project.is_archived.is_(False),
+                )
+            )
+        )
+
+        if not active_project_exists:
+            objective.is_archived = True
 
     await db_session.commit()
 
-    return SuccessResponse(
-        message=f"Project {project.name} is archived"
-    )
+    return SuccessResponse(message=f"Project {project.name} is archived")
 
 
 @patch("projects/{project_id:str}/unarchive")
 async def unarchive_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
-    new_deadline: int = Parameter()
+    new_deadline: int = Parameter(),
 ) -> SuccessResponse:
     """
     Unarchives a project
-    
+
     param project_id: the ID of the project
     param archive_reason: the reason for archiving
     """
@@ -714,19 +729,19 @@ async def unarchive_project(
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
-    
-    project.archive_on = True
-    project.archive_reason = None
-    project.deadline = await change_project_deadline(db_session, project_id, new_deadline)
 
-    # check if any linked objectives can be unarchived
-    await toggle_archive_objective(db_session, project_id)
+    project.is_archived = False
+    project.archive_reason = None
+    await project_utils.change_project_deadline(db_session, project_id, new_deadline)
+
+    # unarchive all linked objectives
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+    for o in objectives:
+        o.is_archived = False
 
     await db_session.commit()
 
-    return SuccessResponse(
-        message=f"Project {project.name} is unarchived"
-    )
+    return SuccessResponse(message=f"Project {project.name} is unarchived")
 
 
 @get("/projects/archived", return_dto=ProjectReadDTO)
@@ -734,7 +749,7 @@ async def get_archived_projects(db_session: AsyncSession) -> list[Project]:
     """
     Returns a list of all archived projects
     """
-    stmt = select(Project).where(Project.archive_on.is_(True))
+    stmt = select(Project).where(Project.is_archived.is_(True))
     result = await db_session.execute(stmt)
     return result.scalars().all()
 
@@ -744,13 +759,13 @@ async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
     """
     Returns a list of all archived projects
     """
-    stmt = select(Objective).where(Objective.archive_on.is_(True))
+    stmt = select(Objective).where(Objective.is_archived.is_(True))
     result = await db_session.execute(stmt)
     return result.scalars().all()
 
 
 @patch("/projects/{project_id:str}/deadline/extend")
-async def change_project_deadline_endpoint(
+async def change_project_deadline(
     db_session: AsyncSession,
     project_id: str = Parameter(),
     new_deadline: int = Parameter(),
@@ -762,7 +777,9 @@ async def change_project_deadline_endpoint(
     param new_deadline: the new deadline of the project
     """
 
-    return await change_project_deadline(db_session, project_id, new_deadline)
+    return await project_utils.change_project_deadline(
+        db_session, project_id, new_deadline
+    )
 
 # during test execution, data is written into memory and not
 # into the actual persistent database file!
@@ -792,7 +809,7 @@ authenticated_router = Router(
         get_users,
         get_tasks_from_key_result,
         create_task_for_key_result,
-        get_objectives_for_project_endpoint,
+        get_objectives_for_project,
         get_key_results_for_objective,
         get_users_for_project,
         add_user_to_project,
@@ -811,7 +828,7 @@ authenticated_router = Router(
         unarchive_project,
         get_archived_projects,
         get_archived_objectives,
-        change_project_deadline_endpoint,
+        change_project_deadline,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

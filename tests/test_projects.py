@@ -52,8 +52,8 @@ def test_empty_project_check(auth_client):
     assert response.status_code == HTTP_400_BAD_REQUEST
 
 
-def test_extend_project_deadline(auth_client):
-    p_id = create_project(auth_client, "DeadlineP")
+def test_change_project_deadline(auth_client):
+    p_id = create_project(auth_client)
 
     # Set new deadline (from 5 to 100)
     response = auth_client.patch(f"/projects/{p_id}/deadline/extend?new_deadline=100")
