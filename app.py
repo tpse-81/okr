@@ -24,7 +24,7 @@ from dto.write_dto import (
     ProjectWriteDTO,
     TaskWriteDTO,
 )
-from models.project import Project
+from models.project import Project, ArchiveReason
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
@@ -666,29 +666,67 @@ async def add_objective_to_objective(
     return SuccessResponse("Objective linked successfully")
 
 
-@patch("/projects/{project_id:str}/archive_toggle")
-async def toggle_archive_project(
-    db_session: AsyncSession, project_id: str = Parameter()
+@patch("projects/{project_id:str}/archive")
+async def archive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    archive_reason: ArchiveReason = Parameter()
 ) -> SuccessResponse:
     """
-    Toggles the boolean attribute archive_on of a project
-
+    Archives a project
+    
     param project_id: the ID of the project
+    param archive_reason: the reason for archiving
     """
 
     # check if project exists
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
-    # toggle archive_on
-    project.archive_on = not project.archive_on
+    
+    project.archive_on = True
+    project.archive_reason = archive_reason
 
-    # check for the linked objectives
+    # check if any linked objectives need to get archived 
     await toggle_archive_objective(db_session, project_id)
 
     await db_session.commit()
 
-    return SuccessResponse(message=f"Archive status toggled to {project.archive_on}")
+    return SuccessResponse(
+        message=f"Project {project.name} is archived"
+    )
+
+
+@patch("projects/{project_id:str}/unarchive")
+async def unarchive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    new_deadline: int = Parameter()
+) -> SuccessResponse:
+    """
+    Unarchives a project
+    
+    param project_id: the ID of the project
+    param archive_reason: the reason for archiving
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+    
+    project.archive_on = True
+    project.archive_reason = None
+    project.deadline = await change_project_deadline(db_session, project_id, new_deadline)
+
+    # check if any linked objectives can be unarchived
+    await toggle_archive_objective(db_session, project_id)
+
+    await db_session.commit()
+
+    return SuccessResponse(
+        message=f"Project {project.name} is unarchived"
+    )
 
 
 @get("/projects/archived", return_dto=ProjectReadDTO)
@@ -769,7 +807,8 @@ authenticated_router = Router(
         delete_key_result,
         delete_task,
         get_new_token,
-        toggle_archive_project,
+        archive_project,
+        unarchive_project,
         get_archived_projects,
         get_archived_objectives,
         change_project_deadline_endpoint,
