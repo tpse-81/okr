@@ -9,6 +9,8 @@ from litestar.testing import TestClient
 
 from app import app
 
+from utils import create_project
+
 
 def test_project_check(auth_client):
     response = auth_client.post(
@@ -48,6 +50,20 @@ def test_empty_project_check(auth_client):
     )
 
     assert response.status_code == HTTP_400_BAD_REQUEST
+
+
+def test_extend_project_deadline(auth_client):
+    p_id = create_project(auth_client, "DeadlineP")
+
+    # Set new deadline (from 5 to 100)
+    response = auth_client.patch(f"/projects/{p_id}/deadline/extend?new_deadline=100")
+
+    assert response.status_code == HTTP_200_OK
+
+    response = auth_client.get("/projects")
+    data = response.json()
+    project = next(p for p in data if p["id"] == p_id)
+    assert project["deadline"] == 100
 
 
 def test_project_check_unauthorized():
