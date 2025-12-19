@@ -71,5 +71,5 @@ def create_user(client, name="name", email=None):
         },
     )
     assert user.status_code == HTTP_201_CREATED
-    user = client.get("/users")
-    return user.json()[-1]["id"]
+    users = client.get("/users").json()
+    return users[-1]["id"]

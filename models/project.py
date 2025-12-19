@@ -6,6 +6,14 @@ from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
 from models.objective import Objective
 from models.project_objective import project_objective
+from enum import Enum
+from sqlalchemy import Enum as SAEnum
+
+
+class ArchiveReason(str, Enum):
+    ON_BREAK = "on_break"
+    FINALIZED = "finalized"
+    GIVE_UP = "give_up"
 
 
 @dataclass
@@ -25,6 +33,11 @@ class Project(base.UUIDBase):
         default=False,
         nullable=False
     )
+    archive_reason: Mapped[ArchiveReason | None] = mapped_column(
+        SAEnum(ArchiveReason, name="archive_reason"),
+        nullable=True,
+        default=None
+        )
 
     # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(

@@ -13,7 +13,7 @@ class ProjectReadDTO(SQLAlchemyDTO[Project]):
     DTO used for serializing Project models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"archive_on", "objectives"})
+    config = DTOConfig(exclude={"archive_on", "archive_reason", "objectives"})
 
 
 class ObjectiveReadDTO(SQLAlchemyDTO[Objective]):
