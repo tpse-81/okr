@@ -7,7 +7,6 @@ from models.task import Task
 from models.user_task import user_task
 
 
-
 @dataclass
 class User(base.UUIDBase):
     """
@@ -19,7 +18,7 @@ class User(base.UUIDBase):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
     name: Mapped[str]
-    email: Mapped[str] = mapped_column(unique = True, index = True)
+    email: Mapped[str]
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str]
 

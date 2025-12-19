@@ -35,7 +35,7 @@ from dto.read_dto import (
     UserReadDTO,
 )
 
-from sqlalchemy import select, exists, and_ 
+from sqlalchemy import select, exists, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.extensions.litestar import (
@@ -43,7 +43,6 @@ from advanced_alchemy.extensions.litestar import (
     SQLAlchemyAsyncConfig,
     SQLAlchemyPlugin,
 )
-from sqlalchemy.exc import IntegrityError
 
 
 from litestar.openapi import OpenAPIConfig
@@ -239,17 +238,13 @@ async def create_user(
     user = User(
         id=user_id,
         name=data.name,
-        email=data.email.strip().lower(),
+        email=data.email,
         password_hash=password_hash,
         two_fa_secret=two_fa_secret,
     )
 
     db_session.add(user)
-    try:
-        await db_session.commit()
-    except IntegrityError: 
-        await db_session.rollback()
-        raise ClientException("Email already in use")    
+    await db_session.commit()
 
     return SuccessResponse("successfully created user")
 
