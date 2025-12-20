@@ -21,7 +21,7 @@ class ObjectiveWriteDTO(SQLAlchemyDTO[Objective]):
     DTO used for serializing Objective models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "parent_id", "children"})
+    config = DTOConfig(exclude={"id", "parent_id", "children", "key_results"})
 
 
 class KeyResultWriteDTO(SQLAlchemyDTO[KeyResult]):
@@ -29,7 +29,7 @@ class KeyResultWriteDTO(SQLAlchemyDTO[KeyResult]):
     DTO used for serializing KeyResult models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "objective"})
+    config = DTOConfig(exclude={"id", "objective", "tasks"})
 
 
 class TaskWriteDTO(SQLAlchemyDTO[Task]):

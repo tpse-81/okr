@@ -168,7 +168,7 @@ async def delete_objective(
     return SuccessResponse("objective deleted successfully")
 
 
-@get("/key_results/{key_result_id:uuid}/tasks", return_dto=TaskReadDTO)
+@get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
 async def get_tasks_from_key_result(
     key_result_id: str, db_session: AsyncSession
 ) -> list[Task]:
@@ -367,13 +367,11 @@ async def create_key_result(
     param data: the key result to create
     return: a JSON object containing a success message
     """
-    if not data.project_id:
-        raise ClientException("invalid project id")
     if not data.objective_id:
         raise ClientException("invalid objective id")
 
-    if not await project_exists(db_session, data.project_id):
-        raise NotFoundException("Project doesn't exist")
+    if not await objective_exists(db_session, data.objective_id):
+        raise NotFoundException("Objective doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
@@ -722,7 +720,7 @@ authenticated_router = Router(
         delete_project,
         delete_objective,
         delete_key_result,
-        delete_task,
+        delete_task,  
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
