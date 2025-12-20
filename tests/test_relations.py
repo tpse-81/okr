@@ -112,7 +112,7 @@ def test_query_users_by_project(auth_client):
 # Test 5: Add user to project with role
 def test_add_user_to_project(auth_client):
     p = create_project(auth_client)
-    u = create_user(auth_client, name="U1")
+    u = create_user(auth_client, name="U1", email="idk")
 
     # assign user to project
     response = auth_client.post(f"/projects/{p}/users/{u}?role=member")
