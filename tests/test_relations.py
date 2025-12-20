@@ -1,6 +1,7 @@
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
+    HTTP_404_NOT_FOUND,
 )
 
 from utils import (
@@ -150,3 +151,29 @@ def test_link_objective_to_objective(auth_client):
     response = auth_client.get("/objectives")
     objectives = response.json()
     assert child_id in [child_id["id"] for child_id in objectives]
+
+
+def test_link_objective_to_objective_parent_not_found(auth_client):
+    non_existing_parent_id = "00000000-0000-0000-0000-000000000000"
+    project_id = create_project(auth_client)
+    child_id = create_objective(auth_client, project_id)
+
+    response = auth_client.post(
+        f"/objectives/{non_existing_parent_id}/children/{child_id}"
+    )
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert "Objective not found" in response.text
+
+
+def test_link_objective_to_objective_child_not_found(auth_client):
+    project_id = create_project(auth_client)
+    parent_id = create_objective(auth_client, project_id)
+    non_existing_child_id = "00000000-0000-0000-0000-000000000000"
+
+    response = auth_client.post(
+        f"/objectives/{parent_id}/children/{non_existing_child_id}"
+    )
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert "Objective not found" in response.text
