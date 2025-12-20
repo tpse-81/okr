@@ -38,7 +38,7 @@ from dto.read_dto import (
     UserReadDTO,
 )
 
-from sqlalchemy import select, exists, and_
+from sqlalchemy import select, exists, and_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.extensions.litestar import (
@@ -113,11 +113,8 @@ async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     return list(await db_session.scalars(select(KeyResult)))
 
 
-@post("/key_results/{key_result_id:str}/delete")
-async def delete_key_result(
-    db_session: AsyncSession,
-    key_result_id: str
-) -> SuccessResponse:
+@delete("/key_results/{key_result_id:str}")
+async def delete_key_result(db_session: AsyncSession, key_result_id: str) -> None:
     """
     Delete a key result and all its tasks
 
@@ -126,11 +123,9 @@ async def delete_key_result(
     key_result = await db_session.get(KeyResult, key_result_id)
     if key_result is None:
         raise NotFoundException("Key result not found")
-    
+
     await db_session.delete(key_result)
     await db_session.commit()
-
-    return SuccessResponse("Key result deleted successfully")
 
 
 @get("/objectives", return_dto=ObjectiveReadDTO)
@@ -148,24 +143,19 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
     return list(objectives)
 
 
-@post("/objectives/{objective_id:str}/delete")
-async def delete_objective(
-    db_session: AsyncSession,
-    objective_id: str
-) -> SuccessResponse:
+@delete("/objectives/{objective_id:str}")
+async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     """
     Delete an objective and all its Key results and tasks
 
     param objective_id: the ID of the objective to delete
     """
     objective = await db_session.get(Objective, objective_id)
-    if objective is None:
+    if not await objective_exists(db_session, objective_id):
         raise NotFoundException("objective not found")
-    
+
     await db_session.delete(objective)
     await db_session.commit()
-
-    return SuccessResponse("objective deleted successfully")
 
 
 @get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
@@ -185,11 +175,8 @@ async def get_tasks_from_key_result(
     return list(result)
 
 
-@post("/tasks/{task_id:str}/delete")
-async def delete_task(
-    db_session: AsyncSession,
-    task_id: str
-) -> SuccessResponse:
+@delete("/tasks/{task_id:str}")
+async def delete_task(db_session: AsyncSession, task_id: str) -> None:
     """
     Delete a single task
 
@@ -197,12 +184,10 @@ async def delete_task(
     """
     task = await db_session.get(Task, task_id)
     if task is None:
-        raise NotFoundException("objective not found")
-    
+        raise NotFoundException("task not found")
+
     await db_session.delete(task)
     await db_session.commit()
-
-    return SuccessResponse("task deleted successfully")
 
 
 @post("/key_results/{key_result_id:str}/tasks", dto=TaskWriteDTO, return_dto=None)
@@ -266,11 +251,11 @@ async def create_project(
     return SuccessResponse("successfully created project")
 
 
-@post("/projects/{project_id:str}/delete")
+@delete("/projects/{project_id:str}")
 async def delete_project(
     db_session: AsyncSession,
     project_id: str,
-) -> SuccessResponse:
+) -> None:
     """
     Delete a project and automatically delete all objectives
     that are not linked to any other project.
@@ -278,16 +263,14 @@ async def delete_project(
     param project_id: the ID of the project to delete
     """
 
-    project = await db_session.get(Project, project_id)
-    if project is None:
+    if not await project_exists(db_session, project_id):
         raise NotFoundException("Project not found")
-    
+
     objectives_for_project = await db_session.scalars(
         select(Objective)
         .join(project_objective)
         .where(project_objective.c.project_id == project_id)
     )
-    objectives_for_project = list(objectives_for_project)
 
     for objective in objectives_for_project:
         has_other_project = await db_session.scalar(
@@ -302,11 +285,9 @@ async def delete_project(
         )
         if not has_other_project:
             await db_session.delete(objective)
-    
-    await db_session.delete(project)
-    await db_session.commit()
 
-    return SuccessResponse("project deleted successfully")
+    await db_session.execute(sa_delete(Project).where(Project.id == project_id))
+    await db_session.commit()
 
 
 @get("/users", return_dto=UserReadDTO)
@@ -720,7 +701,7 @@ authenticated_router = Router(
         delete_project,
         delete_objective,
         delete_key_result,
-        delete_task,  
+        delete_task,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

@@ -68,8 +68,6 @@ def test_empty_key_result_check(auth_client):
 
 
 def test_key_result_with_fake_objective(auth_client):
-    project_id = create_project(auth_client)
-    objective_id = create_objective(auth_client, project_id)
     fake_id = uuid.uuid4()
 
     params = {
