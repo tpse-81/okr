@@ -3,7 +3,7 @@ from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey
 from uuid import UUID
-from models.objective import Objective
+from models.task import Task
 
 
 @dataclass
@@ -19,10 +19,15 @@ class KeyResult(base.UUIDBase):
     objective_id: Mapped[str] = mapped_column(
         ForeignKey("objectives.id", ondelete="CASCADE"), nullable=False
     )
-    project_id: Mapped[str]
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]
 
-    # N->1 relationship with Objective
-    objective: Mapped["Objective"] = relationship("Objective", lazy="selectin")
+    # 1 -> N KeyResult -> Task
+    tasks: Mapped[list["Task"]] = relationship(
+        "Task",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+   

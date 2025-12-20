@@ -35,11 +35,10 @@ def create_objective(client, project_id, name="name", description="description")
     return objective.json()[-1].get("id")
 
 
-def create_key_result(client, project_id, objective_id):
+def create_key_result(client, objective_id):
     key_result = client.post(
         "/key_results",
         json={
-            "project_id": project_id,
             "objective_id": objective_id,
             "description": "description",
             "start_value": 15,

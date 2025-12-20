@@ -3,6 +3,7 @@ from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from sqlalchemy import ForeignKey
 from uuid import UUID
+from models.key_result import KeyResult
 
 
 @dataclass
@@ -23,7 +24,14 @@ class Objective(base.UUIDBase):
         ForeignKey("objectives.id", ondelete="SET NULL"), nullable=True
     )
 
-    # 1->N relationship with Objective children
+    # 1-> N relationship with Objective children
     children: Mapped[list["Objective"]] = relationship(
-        "Objective", cascade="all, delete-orphan", lazy="selectin"
+        "Objective", lazy="selectin"
+    )
+
+    # 1 -> N Objective -> KeyResult
+    key_results: Mapped[list["KeyResult"]] = relationship(
+        "KeyResult",
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )

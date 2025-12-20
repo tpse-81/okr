@@ -45,8 +45,8 @@ def test_query_key_results_by_objective(auth_client):
     o = create_objective(auth_client, p)
 
     # create 2 key results for the same objective
-    kr1 = create_key_result(auth_client, p, o)
-    kr2 = create_key_result(auth_client, p, o)
+    kr1 = create_key_result(auth_client, o)
+    kr2 = create_key_result(auth_client, o)
 
     # check if both key results can be queried
     response = auth_client.get(f"objectives/{o}/key_results")
@@ -67,7 +67,7 @@ def test_query_tasks_by_key_result(auth_client):
     o = create_objective(auth_client, p)
 
     # create 2 key results for the same objective
-    kr = create_key_result(auth_client, p, o)
+    kr = create_key_result(auth_client, o)
 
     # create 2 tasks for the same key result
     t1 = create_task(auth_client, kr)
