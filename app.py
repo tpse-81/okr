@@ -379,7 +379,6 @@ async def create_key_result(
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        project_id=data.project_id,
         objective_id=data.objective_id,
         description=data.description,
         start_value=data.start_value,
