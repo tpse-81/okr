@@ -25,9 +25,5 @@ class KeyResult(base.UUIDBase):
 
     # 1 -> N KeyResult -> Task
     tasks: Mapped[list["Task"]] = relationship(
-        "Task",
-        cascade="all, delete-orphan",
-        lazy="selectin"
+        "Task", cascade="all, delete-orphan", lazy="selectin"
     )
-
-   

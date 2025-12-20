@@ -25,13 +25,9 @@ class Objective(base.UUIDBase):
     )
 
     # 1-> N relationship with Objective children
-    children: Mapped[list["Objective"]] = relationship(
-        "Objective", lazy="selectin"
-    )
+    children: Mapped[list["Objective"]] = relationship("Objective", lazy="selectin")
 
     # 1 -> N Objective -> KeyResult
     key_results: Mapped[list["KeyResult"]] = relationship(
-        "KeyResult",
-        cascade="all, delete-orphan",
-        lazy="selectin"
+        "KeyResult", cascade="all, delete-orphan", lazy="selectin"
     )
