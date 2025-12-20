@@ -19,7 +19,7 @@ class KeyResult(base.UUIDBase):
     objective_id: Mapped[str] = mapped_column(
         ForeignKey("objectives.id", ondelete="CASCADE"), nullable=False
     )
-    project_id: Mapped[str]
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id",ondelete="CASCADE"))
     description: Mapped[str]
     start_value: Mapped[float]
     end_value: Mapped[float]

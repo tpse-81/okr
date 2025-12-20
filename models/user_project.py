@@ -13,7 +13,7 @@ class UserProject(base.UUIDBase):
 
     __tablename__ = "user_project"
     # foreign keys
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete = "CASCADE"), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete= "CASCADE"), primary_key=True)
     # user role attribute
     role: Mapped[str]

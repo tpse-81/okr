@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from litestar import Litestar, get, post
+from litestar import Litestar, get, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
@@ -35,7 +35,7 @@ from dto.read_dto import (
     UserReadDTO,
 )
 
-from sqlalchemy import select, exists, and_ 
+from sqlalchemy import select, exists, and_, delete as sa_delete 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.extensions.litestar import (
@@ -203,6 +203,53 @@ async def create_project(
 
     return SuccessResponse("successfully created project")
 
+@delete("/projects/{project_id:str}")
+async def delete_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Delete a project.
+
+    param project_id: the ID of the project to delete
+    return: whether the project was successfully deleted
+    """
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # store all objective IDs that are currently linked to this project
+    objective_ids = list(
+        await db_session.scalars(
+            select(project_objective.c.objective_id)
+            .where(project_objective.c.project_id == project_id)
+        )
+    )
+
+    # remove link-table entries (Project <-> Objective, User <-> Project)
+    await db_session.execute(
+        sa_delete(project_objective).where(project_objective.c.project_id == project_id)
+    )
+    await db_session.execute(
+        sa_delete(UserProject).where(UserProject.project_id == project_id)
+    )
+
+    # Delete the Project
+    await db_session.delete(project)
+
+    # Delete Objectives that are no longer linked to any Project 
+    for oid in objective_ids:
+        still_linked = await db_session.scalar(
+            select(exists().where(project_objective.c.objective_id == oid))
+        )
+        if not still_linked:
+            obj = await db_session.get(Objective, oid)
+            if obj:
+                await db_session.delete(obj)
+
+    await db_session.commit()
+    return SuccessResponse("successfully deleted project")
+
 
 @get("/users", return_dto=UserReadDTO)
 async def get_users(db_session: AsyncSession) -> list[User]:
@@ -292,6 +339,25 @@ async def create_key_result(
     return SuccessResponse("successfully created key result")
 
 
+@delete("/key_results/{key_result_id:str}")
+async def delete_key_result(
+    db_session: AsyncSession,
+    key_result_id: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Delete a key result.
+
+    param key_result_id: the ID of the key result to delete
+    return: whether the key result was successfully deleted
+    """
+    key_result = await db_session.get(KeyResult, key_result_id)
+    if not key_result:
+        raise NotFoundException("KeyResult not found")
+
+    await db_session.delete(key_result)
+    await db_session.commit()
+    return SuccessResponse("successfully deleted key result")
+
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
 async def create_objective(
     db_session: AsyncSession, data: Objective, project_id: str = Parameter()
@@ -321,6 +387,25 @@ async def create_objective(
     await db_session.commit()
 
     return SuccessResponse("successfully created objective")
+
+@delete("/objectives/{objective_id:str}")
+async def delete_objective(
+    db_session: AsyncSession,
+    objective_id: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Delete an objective.
+
+    param objective_id: the ID of the objective to delete
+    return: whether the objective was successfully deleted
+    """
+    objective = await db_session.get(Objective, objective_id)
+    if not objective:
+        raise NotFoundException("Objective not found")
+
+    await db_session.delete(objective)
+    await db_session.commit()
+    return SuccessResponse("successfully deleted objective")
 
 
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
