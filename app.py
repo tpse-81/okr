@@ -5,6 +5,7 @@ from litestar.params import Parameter
 from litestar.router import Router
 from litestar.static_files import create_static_files_router
 from litestar.exceptions import ClientException, NotFoundException
+from litestar.config.cors import CORSConfig
 
 # Importing the database models
 from authentication import (
@@ -478,6 +479,7 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     create_all=True,
 )
 
+cors_config = CORSConfig(allow_origins=["*"])
 # requires user to provide a valid auth token
 authenticated_router = Router(
     path="/",
@@ -545,4 +547,5 @@ app = Litestar(
             },
         ),
     ),
+    cors_config=cors_config,
 )
