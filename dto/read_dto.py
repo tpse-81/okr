@@ -21,7 +21,7 @@ class ObjectiveReadDTO(SQLAlchemyDTO[Objective]):
     DTO used for serializing Objective models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"parent_id", "children"})
+    config = DTOConfig(exclude={"children"})
 
 
 class KeyResultReadDTO(SQLAlchemyDTO[KeyResult]):

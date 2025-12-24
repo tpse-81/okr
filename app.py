@@ -307,7 +307,7 @@ async def create_objective(
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
-    objective = Objective(id=objective_id, name=data.name, description=data.description)
+    objective = Objective(id=objective_id, name=data.name, description=data.description, parent_id=project_id)
 
     # add the new objective to the project's list of objectives
     project.objectives.append(objective)
