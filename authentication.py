@@ -217,8 +217,8 @@ async def change_password(
 
 @post("/users/{user_id:str}/auth_token")
 async def get_new_token(
-        db_session: AsyncSession,
-        user_id: str = Parameter(),
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Change a user's token.
@@ -234,4 +234,3 @@ async def get_new_token(
     await db_session.commit()
 
     return SuccessResponse("new 2FA token generated")
-
