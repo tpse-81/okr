@@ -19,7 +19,7 @@ def create_project(client):
     )
     assert project.status_code == HTTP_201_CREATED
     project = client.get("/projects")
-    return project.json()[0].get("id")
+    return project.json()[-1].get("id")
 
 
 def create_objective(client, project_id, name="name", description="description"):
@@ -32,7 +32,7 @@ def create_objective(client, project_id, name="name", description="description")
     )
     assert objective.status_code == HTTP_201_CREATED
     objective = client.get("/objectives")
-    return objective.json()[0].get("id")
+    return objective.json()[-1].get("id")
 
 
 def create_key_result(client, project_id, objective_id):
@@ -48,7 +48,7 @@ def create_key_result(client, project_id, objective_id):
     )
     assert key_result.status_code == HTTP_201_CREATED
     key_result = client.get("/key_results")
-    return key_result.json()[0].get("id")
+    return key_result.json()[-1].get("id")
 
 
 def create_task(client, key_result_id):
@@ -58,7 +58,7 @@ def create_task(client, key_result_id):
     )
     assert task.status_code == HTTP_201_CREATED
     task = client.get(f"/key_results/{key_result_id}/tasks")
-    return task.json()[0].get("id")
+    return task.json()[-1].get("id")
 
 
 def create_user(client, name="name", email=None):
