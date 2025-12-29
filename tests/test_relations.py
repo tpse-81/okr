@@ -2,6 +2,7 @@ from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
     HTTP_404_NOT_FOUND,
+    HTTP_400_BAD_REQUEST,
 )
 
 from utils import (
@@ -177,3 +178,37 @@ def test_link_objective_to_objective_child_not_found(auth_client):
 
     assert response.status_code == HTTP_404_NOT_FOUND
     assert "Objective not found" in response.text
+
+
+def test_link_objective_to_itself(auth_client):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id, name="Objective Self Link")
+
+    response = auth_client.post(f"/objectives/{objective_id}/children/{objective_id}")
+
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "The objectives are the same"
+
+
+def test_cyclical_linking(auth_client):
+    project_id = create_project(auth_client)
+    parent_id = create_objective(auth_client, project_id, name="Parent")
+    child_id = create_objective(auth_client, project_id, name="Child")
+    grandchild_id = create_objective(auth_client, project_id, name="Grandchild")
+
+    # link parent -> child
+    response = auth_client.post(f"/objectives/{parent_id}/children/{child_id}")
+    assert response.status_code == HTTP_201_CREATED
+
+    # link child -> grandchild
+    response = auth_client.post(f"/objectives/{child_id}/children/{grandchild_id}")
+    assert response.status_code == HTTP_201_CREATED
+
+    # attempt to link grandchild -> parent (cycle)
+    response = auth_client.post(f"/objectives/{grandchild_id}/children/{parent_id}")
+
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    assert (
+        response.json()["detail"]
+        == "Linking these objectives would create a cyclical relationship"
+    )

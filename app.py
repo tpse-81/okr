@@ -543,6 +543,8 @@ async def get_user_role(
         raise NotFoundException("User is not part of the project")
 
     return UserRoleResponse(role)
+
+
 @post("/objectives/{parent_objective_id:str}/children/{objective_id:str}")
 async def add_objective_to_objective(
     db_session: AsyncSession,
@@ -554,6 +556,25 @@ async def add_objective_to_objective(
 
     if not parent or not child:
         raise NotFoundException("Objective not found")
+
+    current = parent
+    while current.parent_id is not None:
+        if current.parent_id == child.id:
+            raise ClientException(
+                status_code=400,
+                detail="Linking these objectives would create a cyclical relationship",
+            )
+
+        current = await db_session.get(Objective, current.parent_id)
+        if current is None:
+            break
+
+    # check if parent objective = objective
+    if objective_id == parent_objective_id:
+        raise ClientException(
+            status_code=400,
+            detail="The objectives are the same",
+        )
 
     if child.parent_id != parent_objective_id:
         child.parent_id = parent_objective_id
