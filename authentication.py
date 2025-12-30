@@ -1,22 +1,28 @@
 from dataclasses import dataclass
 import secrets
 from typing import Annotated, Any
+
 from argon2.exceptions import VerifyMismatchError
-from litestar import Response, post
+from litestar import Response, post, patch
 from litestar.connection import ASGIConnection
-from litestar.exceptions import ClientException, NotAuthorizedException
+from litestar.exceptions import (
+    ClientException,
+    NotAuthorizedException,
+    NotFoundException,
+)
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
 import jwt
 from argon2 import PasswordHasher
 from datetime import datetime, timezone, timedelta
 
-from litestar.params import Body
+from litestar.params import Body, Parameter
 from advanced_alchemy.extensions.litestar import SQLAlchemyPlugin
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User
+from responses import SuccessResponse
 
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
@@ -83,6 +89,12 @@ class LoginRequest:
 @dataclass
 class LoginResponse:
     jwt_token: str
+
+
+@dataclass
+class ChangePasswordRequest:
+    old_password: str
+    new_password: str
 
 
 @post("/login")
@@ -171,3 +183,54 @@ def generate_twofa_secret() -> str:
     generates a random 2FA Token
     """
     return secrets.token_hex(16)
+
+
+@patch("/users/{user_id:str}/password/change")
+async def change_password(
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+    data: ChangePasswordRequest = Body(title="Change Password Request"),
+) -> SuccessResponse:
+    """
+    Change a user's password.
+
+    param user_id: ID of the user whose password should be changed
+    param data: old and new password
+    """
+
+    # load user
+    user_query = await db_session.execute(select(User).where(User.id == user_id))
+    user = user_query.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    # verify old password
+    if not verify_password(user.password_hash, data.old_password):
+        raise NotAuthorizedException("Old password is incorrect")
+
+    # hash and store new password
+    user.password_hash = hash_password(data.new_password)
+    await db_session.commit()
+
+    return SuccessResponse("password successfully changed")
+
+
+@post("/users/{user_id:str}/auth_token")
+async def get_new_token(
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+) -> SuccessResponse:
+    """
+    Change a user's token.
+    """
+
+    # load user
+    user_query = await db_session.execute(select(User).where(User.id == user_id))
+    user = user_query.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    user.two_fa_secret = generate_twofa_secret()
+    await db_session.commit()
+
+    return SuccessResponse("new 2FA token generated")
