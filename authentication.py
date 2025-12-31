@@ -23,15 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User
 from responses import SuccessResponse
+from config import config
 
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
-
-# TODO: make configurable!
-JWT_SECRET = "secretfortesting"
-# how long tokens are valid - if the time has
-# passed, users are automatically getting logged out
-JWT_VALIDITY_DURATION_HOURS = 7 * 24  # 1 week
 
 
 @dataclass
@@ -117,7 +112,7 @@ async def login_handler(
 
     # TODO: verify 2FA code
 
-    jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
+    jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
     return Response(
         content=LoginResponse(jwt_token=jwt_token),
         headers={"Authorization": jwt_token},
@@ -131,13 +126,15 @@ def create_jwt(user: User, validity_hours: int) -> str:
     # set expiration time - automatically gets handled when `jwt.decode` is called
     jwt_payload["exp"] = datetime.now(tz=timezone.utc) + timedelta(hours=validity_hours)
 
-    return jwt.encode(payload=jwt_payload, key=JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(
+        payload=jwt_payload, key=config.jwt_config.secret, algorithm=JWT_ALGORITHM
+    )
 
 
 def verify_jwt(jwt_token: str) -> JwtUser | None:
     try:
         user_info: dict[str, Any] = jwt.decode(
-            jwt_token, JWT_SECRET, algorithms=[JWT_ALGORITHM]
+            jwt_token, config.jwt_config.secret, algorithms=[JWT_ALGORITHM]
         )
     except jwt.DecodeError:
         return None

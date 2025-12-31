@@ -54,6 +54,7 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
 
+from config import config
 from responses import SuccessResponse, UserRoleResponse
 
 
@@ -671,11 +672,8 @@ async def add_objective_to_objective(
 # into the actual persistent database file!
 is_pytest_active = "PYTEST_VERSION" in os.environ
 database_url = (
-    "sqlite+aiosqlite:///:memory:"
-    if is_pytest_active
-    else "sqlite+aiosqlite:///okr.sqlite"
+    "sqlite+aiosqlite:///:memory:" if is_pytest_active else config.database_url
 )
-
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
