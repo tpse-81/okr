@@ -12,6 +12,7 @@ dependencies = [
     "pyjwt>=2.10.1",
     "sqlalchemy>=2.0.44",
     "sniffio>=1.3.0",
+    "typed-settings[attrs]>=25.3.0",
 ]
 
 [dependency-groups]

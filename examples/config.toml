@@ -1,0 +1,12 @@
+# See [config.py] for documentation on this!
+
+[okr]
+database_url = "sqlite+aiosqlite:///:memory:"
+
+[okr.admin]
+username = "admin"
+password_hash = ""
+
+[okr.jwt_config]
+secret = "secretfortesting"
+validity_duration_hours = 24
