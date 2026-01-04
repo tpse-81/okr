@@ -13,6 +13,7 @@ from authentication import (
     generate_twofa_secret,
     hash_password,
     login_handler,
+    verify_twofa_handler,
     change_password,
     get_new_token,
 )
@@ -29,6 +30,8 @@ from models.user import User
 from models.task import Task
 from models.project_objective import project_objective
 from models.user_project import UserProject, UserRole
+from models.login_challenge import LoginChallenge
+
 
 from dto.read_dto import (
     ProjectReadDTO,
@@ -669,7 +672,8 @@ async def add_objective_to_objective(
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///:memory:",
+    connection_string="sqlite+aiosqlite:///:memory:", #connection_string="sqlite+aiosqlite:///okr.db", if /login/2fa returns challenge not found 
+
     session_config=session_config,
     create_all=True,
 )
@@ -715,6 +719,7 @@ public_router = Router(
         hello_world,
         main_page,
         login_handler,
+        verify_twofa_handler,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
         # TODO: creating users should not be possible without authentication!

@@ -24,14 +24,74 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from responses import SuccessResponse
 
+import os
+import uuid
+import asyncio
+import hmac
+import hashlib
+import smtplib
+from email.message import EmailMessage
+
+
+from sqlalchemy import delete as sa_delete
+from models.login_challenge import LoginChallenge
+
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
 
 # TODO: make configurable!
 JWT_SECRET = "secretfortesting"
-# how long tokens are valid - if the time has
-# passed, users are automatically getting logged out
+# how long tokens are valid. If the time has passed, users are automatically getting logged out
 JWT_VALIDITY_DURATION_HOURS = 7 * 24  # 1 week
+
+# 2FA Settings
+TWOFA_CODE_TTL_MINUTES = 10
+TWOFA_MAX_ATTEMPTS = 5
+OTP_SECRET = os.environ.get("OTP_SECRET", JWT_SECRET)
+
+# SMTP settings (Email)
+SMTP_HOST = os.environ.get("SMTP_HOST")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASS = os.environ.get("SMTP_PASS")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "no-reply@example.com")
+
+DEV_PRINT_2FA = os.environ.get("DEV_PRINT_2FA", "true").lower() == "true"
+
+def _hash_2fa_code(challenge_id: str, code: str) -> str:
+    # HMAC: even when someone sees the DB the OTP_SECRET cannot be offline bruteforced
+    msg = f"{challenge_id}:{code}".encode("utf-8")
+    return hmac.new(OTP_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def _send_email_sync(to_email: str, subject: str, body: str) -> None:
+    if not SMTP_HOST:
+        raise RuntimeError("SMTP_HOST is not configured")
+
+    msg = EmailMessage()
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        server.starttls()
+        if SMTP_USER and SMTP_PASS:
+            server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+
+
+async def send_2fa_email(to_email: str, code: str) -> None:
+    subject = "Dein Login-Code"
+    body = f"Dein 2FA-Code lautet: {code}\n\nEr ist {TWOFA_CODE_TTL_MINUTES} Minuten gültig."
+    if SMTP_HOST:
+        await asyncio.to_thread(_send_email_sync, to_email, subject, body)
+    else:
+        # Dev-Fallback: damit du testen kannst, ohne SMTP einzurichten
+        if DEV_PRINT_2FA:
+            print(f"[DEV] 2FA code for {to_email}: {code}")
+        else:
+            raise ClientException("E-Mail Versand ist nicht konfiguriert (SMTP_* fehlt)")
 
 
 @dataclass
@@ -82,7 +142,6 @@ class LoginRequest:
 
     email: str
     password: str
-    # TODO: 2fa is not yet implemented, so the code is ignored
     two_fa_code: str | None
 
 
@@ -90,24 +149,33 @@ class LoginRequest:
 class LoginResponse:
     jwt_token: str
 
+@dataclass
+class LoginTwoFaRequiredResponse:
+    requires_2fa: bool
+    challenge_id: str
 
 @dataclass
 class ChangePasswordRequest:
     old_password: str
     new_password: str
 
+@dataclass
+class TwoFaVerifyRequest:
+    challenge_id: str
+    code: str    
+
 
 @post("/login")
 async def login_handler(
     data: Annotated[LoginRequest, Body(title="Login Request")],
     db_session: AsyncSession,
-) -> Response[LoginResponse]:
+) -> Response:
     """
     Login to the application.
 
     param data: the login data the user entered
 
-    return: a JSON object containing the generated jwt token
+    return: a JSON object containing the generated jwt token or a 2FA challenge_id if 2FA is required
     """
     user_query = await db_session.execute(select(User).where(User.email == data.email))
     user = user_query.scalar_one_or_none()
@@ -116,12 +184,95 @@ async def login_handler(
         raise ClientException("invalid username or password")
 
     # TODO: verify 2FA code
+    # If 2FA is enabled, do not issue a JWT yet. Instead create a login challenge and send a one-time code. 
+    # The client must then call POST /login/2fa with challenge_id + code to obtain a JWT
+    if getattr(user, "two_fa_enabled", True):
+        await db_session.execute(
+            sa_delete(LoginChallenge).where(LoginChallenge.user_id == user.id)
+        )
+
+        challenge_id = uuid.uuid4()
+        code = f"{secrets.randbelow(1_000_000):06d}"  # 000000 - 999999
+
+        expires_at = datetime.utcnow() + timedelta(
+            minutes=TWOFA_CODE_TTL_MINUTES
+        )
+        code_hash = _hash_2fa_code(str(challenge_id), code)
+
+        challenge = LoginChallenge(
+            id=challenge_id,
+            user_id=user.id,
+            code_hash=code_hash,
+            expires_at=expires_at,
+            attempts=0,
+        )
+
+        db_session.add(challenge)
+        await db_session.commit()
+
+        await send_2fa_email(user.email, code)
+
+        return Response(
+            content=LoginTwoFaRequiredResponse(
+                requires_2fa=True,
+                challenge_id=str(challenge_id),
+            )
+        )
+
 
     jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
     return Response(
         content=LoginResponse(jwt_token=jwt_token),
         headers={"Authorization": jwt_token},
     )
+
+@post("/login/2fa")
+async def verify_twofa_handler(
+    data: Annotated[TwoFaVerifyRequest, Body(title="2FA Verify Request")],
+    db_session: AsyncSession,
+) -> Response[LoginResponse]:
+    """
+    Verify a 2FA login challenge.
+
+    param data: challenge_id and the 6-digit code sent via email
+    return: a JSON object containing the generated jwt token
+    """
+    try:
+        challenge_uuid = uuid.UUID(data.challenge_id)
+    except ValueError:
+        raise ClientException("Invalid challenge_id format")
+
+    challenge = await db_session.get(LoginChallenge, challenge_uuid)
+
+    if not challenge:
+        raise NotFoundException("2FA challenge not found")
+
+    now = datetime.utcnow()
+    if challenge.expires_at < now:
+        await db_session.delete(challenge)
+        await db_session.commit()
+        raise ClientException("2FA code expired")
+
+    if challenge.attempts >= TWOFA_MAX_ATTEMPTS:
+        await db_session.delete(challenge)
+        await db_session.commit()
+        raise ClientException("Too many attempts")
+
+    expected_hash = _hash_2fa_code(str(challenge_uuid), data.code)
+    if not hmac.compare_digest(expected_hash, challenge.code_hash):
+        challenge.attempts += 1
+        await db_session.commit()
+        raise ClientException("Invalid 2FA code")
+
+    user = await db_session.get(User, challenge.user_id)
+    if not user:
+        raise NotFoundException("User not found")
+
+    await db_session.delete(challenge)
+    await db_session.commit()
+
+    jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
+    return Response(content=LoginResponse(jwt_token=jwt_token), headers={"Authorization": jwt_token})
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
