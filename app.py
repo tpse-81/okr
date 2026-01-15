@@ -436,6 +436,19 @@ async def add_user_to_project(
         message=f"User {user.name} added to project {project.name} with role {role}"
     )
 
+@get("/projects/{project_id:str}", return_dto=ProjectReadDTO)
+async def get_project(
+        db_session: AsyncSession,
+        project_id: str = Parameter(),
+) -> Project:
+    project = await db_session.get(Project, project_id)
+
+    if not project:
+        raise NotFoundException("Project not found")
+
+    return project
+
+
 
 @post("projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
