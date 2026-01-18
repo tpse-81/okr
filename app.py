@@ -330,6 +330,7 @@ async def create_user(
         email=data.email,
         password_hash=password_hash,
         two_fa_secret=two_fa_secret,
+        is_admin=False,
     )
 
     db_session.add(user)
@@ -731,10 +732,40 @@ public_router = Router(
     tags=["public"],
 )
 
+
+async def create_admin_user(app: Litestar):
+    """
+    Create the admin user configured in the `config` file.
+
+    If a user with the given admin username already exists, no admin user is created.
+    """
+    sqlalchemy_plugin = app.plugins.get(SQLAlchemyPlugin)
+    db_config = sqlalchemy_plugin.config[0]
+    session_maker = db_config.create_session_maker()
+    async with session_maker() as db_session:
+        admin_exists = await db_session.scalar(
+            select(exists(User).where(User.name == config.admin.username))
+        )
+
+        if not admin_exists:
+            user_id = uuid.uuid4()
+            user = User(
+                id=user_id,
+                name=config.admin.username,
+                email=config.admin.email,
+                password_hash=config.admin.password_hash,
+                two_fa_secret=generate_twofa_secret(),
+                is_admin=True,
+            )
+
+            db_session.add(user)
+            await db_session.commit()
+
+
 # Run the web app
 app = Litestar(
-    route_handlers=[public_router, authenticated_router],
     debug=True,
+    route_handlers=[public_router, authenticated_router],
     plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
     openapi_config=OpenAPIConfig(
         title="OKR-Tool",
@@ -760,4 +791,5 @@ app = Litestar(
         ),
     ),
     cors_config=cors_config,
+    on_startup=[create_admin_user],
 )
