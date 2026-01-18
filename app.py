@@ -4,7 +4,6 @@ from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
-from litestar.static_files import create_static_files_router
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.config.cors import CORSConfig
 
@@ -84,15 +83,14 @@ async def hello_world(
     return {"hello": "world"}
 
 
-@get("/", media_type="text/html", include_in_schema=False)
+@get(["/", "/health", "/healthz"], include_in_schema=False)
 async def main_page() -> str:
     """
-    Renders the main HTML page.
+    Renders a short status message if the app is running.
 
-    return: a raw HTML string
+    return: a raw text string
     """
-    with open("main.html", "r") as f:
-        return f.read()
+    return "OK"
 
 
 @get("/projects", return_dto=ProjectReadDTO)
@@ -723,8 +721,6 @@ public_router = Router(
         hello_world,
         main_page,
         login_handler,
-        # make all files in the images folder available under the /images/{filename} path
-        create_static_files_router(path="/images", directories=["images"]),
         # TODO: creating users should not be possible without authentication!
         create_user,
     ],
