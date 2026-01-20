@@ -244,6 +244,7 @@ async def create_project(
         deadline=data.deadline,
         creation_date=data.creation_date,
         done=data.done,
+        icon=data.icon,
     )
 
     # create new database entry for project with parameters from URL

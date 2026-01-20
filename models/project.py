@@ -26,3 +26,6 @@ class Project(base.UUIDBase):
     )
 
     done: Mapped[bool]
+
+    # Base64-Encoded raw bytes of the image
+    icon: Mapped[str | None]
