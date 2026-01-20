@@ -1,5 +1,7 @@
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
+
 from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
@@ -242,7 +244,7 @@ async def create_project(
         id=project_id,
         name=data.name,
         deadline=data.deadline,
-        creation_date=data.creation_date,
+        creation_date=datetime.now(tz=timezone.utc),
         done=data.done,
     )
 

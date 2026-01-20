@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from datetime import datetime
+
 from advanced_alchemy.extensions.litestar import base
 from sqlalchemy.orm import Mapped, relationship, mapped_column
 from uuid import UUID
@@ -17,8 +19,8 @@ class Project(base.UUIDBase):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
     name: Mapped[str]
-    creation_date: Mapped[int]
-    deadline: Mapped[int]
+    creation_date: Mapped[datetime]
+    deadline: Mapped[datetime]
 
     # N->N relationship with Objective
     objectives: Mapped[list["Objective"]] = relationship(
