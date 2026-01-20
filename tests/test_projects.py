@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -14,8 +15,7 @@ def test_project_check(auth_client):
         "/projects",
         json={
             "name": "Testprojekt",
-            "deadline": 5,
-            "creation_date": 10,
+            "deadline": "2025-08-13T10:05:00Z",
             "done": False,
         },
     )
@@ -28,8 +28,13 @@ def test_project_check(auth_client):
 
     project = response.json()[0]
     assert project["name"] == "Testprojekt"
-    assert project["deadline"] == 5
-    assert project["creation_date"] == 10
+    assert project["deadline"] == "2025-08-13T10:05:00Z"
+
+    # check if the automatically set creation date is set to approximately
+    # the current time
+    parsed_date = datetime.fromisoformat(project["creation_date"])
+    date_offset = parsed_date - datetime.now(timezone.utc)
+    assert date_offset.total_seconds() < 1
 
 
 def test_empty_project_check(auth_client):
@@ -37,8 +42,7 @@ def test_empty_project_check(auth_client):
         "/projects",
         params={
             "name": "Testprojekt",
-            "deadline": 5,
-            "creation_date": "",  # invalid
+            "deadline": "2025",  # invalid date
             "done": False,
         },
     )
@@ -52,8 +56,7 @@ def test_project_check_unauthorized():
             "/projects",
             json={
                 "name": "Testprojekt",
-                "deadline": 5,
-                "creation_date": 10,
+                "deadline": "2025-08-13T10:05:00Z",
                 "done": False,
             },
         )
