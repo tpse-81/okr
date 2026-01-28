@@ -56,14 +56,16 @@ def test_change_project_deadline(auth_client):
     p_id = create_project(auth_client)
 
     # Set new deadline (from 5 to 100)
-    response = auth_client.patch(f"/projects/{p_id}/deadline/extend?new_deadline=100")
+    response = auth_client.patch(
+        f"/projects/{p_id}/deadline/extend?new_deadline=2025-08-13T10:05:00Z"
+    )
 
     assert response.status_code == HTTP_200_OK
 
     response = auth_client.get("/projects")
     data = response.json()
     project = next(p for p in data if p["id"] == p_id)
-    assert project["deadline"] == 100
+    assert project["deadline"] == "2025-08-13T10:05:00Z"
 
 
 def test_project_check_unauthorized():
