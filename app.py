@@ -158,6 +158,10 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     if not await objective_exists(db_session, objective_id):
         raise NotFoundException("objective not found")
 
+    # deleting an objective may force the children to become archived
+    # TODO: children should be linked to the parent of the objective that is getting deleted
+    # TODO: archiving status should be checked, after all children are linked
+
     await db_session.delete(objective)
     await db_session.commit()
 
@@ -268,14 +272,17 @@ async def delete_project(
     param project_id: the ID of the project to delete
     """
 
-    if not await project_exists(db_session, project_id):
+    project = await db_session.get(Project, project_id)
+    if not project:
         raise NotFoundException("Project not found")
 
-    objectives_for_project = await db_session.scalars(
-        select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
+    # make the project archived for the archive_check logic
+    project.is_archived = True
+
+    objectives_for_project = await project_utils.get_objectives_for_project(
+        db_session, project_id
     )
+    remaining_objectives: list[Objective] = []
 
     for objective in objectives_for_project:
         has_other_project = await db_session.scalar(
@@ -290,6 +297,15 @@ async def delete_project(
         )
         if not has_other_project:
             await db_session.delete(objective)
+        else:
+            remaining_objectives.append(objective)
+
+    await db_session.flush()
+
+    # deleting a project may force the remaining objectives to become archived
+    await project_utils.archive_objective_including_children(
+        db_session, remaining_objectives
+    )
 
     await db_session.execute(sa_delete(Project).where(Project.id == project_id))
     await db_session.commit()
@@ -515,7 +531,7 @@ async def add_user_to_project(
     )
 
 
-@post("projects/{project_id:str}/objectives/{objective_id:str}")
+@post("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
@@ -542,8 +558,11 @@ async def add_objective_to_project(
     if objective not in project.objectives:
         project.objectives.append(objective)
 
+    # if the project was archived, the objective archive status won't be changed, so only this one check is necessary
     if not project.is_archived:
-        objective.is_archived = False
+        await project_utils.unarchive_objective_including_children(
+            db_session, [objective]
+        )
 
     await db_session.commit()
 
@@ -657,12 +676,16 @@ async def add_objective_to_objective(
             detail="The objectives are the same",
         )
 
-    if not parent.is_archived:
-        child.is_archived = False
-
     if child.parent_id != parent_objective_id:
         child.parent_id = parent_objective_id
-        await db_session.commit()
+        await db_session.flush()
+
+    if not parent.is_archived:
+        await project_utils.unarchive_objective_including_children(db_session, [child])
+    else:
+        await project_utils.archive_objective_including_children(db_session, [child])
+
+    await db_session.commit()
 
     return SuccessResponse("Objective linked successfully")
 
@@ -688,24 +711,9 @@ async def archive_project(
     project.is_archived = True
     project.archive_reason = archive_reason
 
-    # check if any linked objectives need to get archived
-    # get every objective linked to the project
+    # check if associated objectives and their children need to be archived
     objectives = await project_utils.get_objectives_for_project(db_session, project_id)
-
-    for objective in objectives:
-        # check if any unarchived project is linked for each of the objectives and toggle accordingly
-        active_project_exists = await db_session.scalar(
-            select(
-                exists().where(
-                    project_objective.c.objective_id == objective.id,
-                    project_objective.c.project_id == Project.id,
-                    Project.is_archived.is_(False),
-                )
-            )
-        )
-
-        if not active_project_exists:
-            objective.is_archived = True
+    await project_utils.archive_objective_including_children(db_session, objectives)
 
     await db_session.commit()
 
@@ -716,7 +724,7 @@ async def archive_project(
 async def unarchive_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
-    new_deadline: int = Parameter(),
+    new_deadline: datetime = Parameter(),
 ) -> SuccessResponse:
     """
     Unarchives a project
@@ -734,10 +742,9 @@ async def unarchive_project(
     project.archive_reason = None
     await project_utils.change_project_deadline(db_session, project_id, new_deadline)
 
-    # unarchive all linked objectives
+    # unarchive all linked objectives and their children
     objectives = await project_utils.get_objectives_for_project(db_session, project_id)
-    for o in objectives:
-        o.is_archived = False
+    await project_utils.unarchive_objective_including_children(db_session, objectives)
 
     await db_session.commit()
 
@@ -768,7 +775,7 @@ async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
 async def change_project_deadline(
     db_session: AsyncSession,
     project_id: str = Parameter(),
-    new_deadline: int = Parameter(),
+    new_deadline: datetime = Parameter(),
 ) -> SuccessResponse:
     """
     Extends the project deadline
@@ -780,6 +787,7 @@ async def change_project_deadline(
     return await project_utils.change_project_deadline(
         db_session, project_id, new_deadline
     )
+
 
 # during test execution, data is written into memory and not
 # into the actual persistent database file!
