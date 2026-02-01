@@ -284,6 +284,21 @@ async def delete_task(db_session: AsyncSession, task_id: str) -> None:
     await db_session.commit()
 
 
+@delete("/users/{user_id:str}")
+async def delete_user(db_session: AsyncSession, user_id: str) -> None:
+    """
+    Delete a user and all related associations.
+
+    param user_id: the ID of the user to delete
+    """
+    user = await db_session.get(User, user_id)
+    if user is None:
+        raise NotFoundException("User not found")
+
+    await db_session.delete(user)
+    await db_session.commit()
+
+
 @post("/key_results/{key_result_id:str}/tasks", dto=TaskWriteDTO, return_dto=None)
 async def create_task_for_key_result(
     db_session: AsyncSession,
@@ -1078,6 +1093,7 @@ authenticated_router = Router(
         get_archived_projects,
         get_archived_objectives,
         change_project_deadline,
+        delete_user,
         logout,
     ],
     middleware=[AuthenticationMiddleware],
