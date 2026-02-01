@@ -10,13 +10,14 @@ from litestar.config.cors import CORSConfig
 # Importing the database models
 from authentication import (
     AuthenticationMiddleware,
-    generate_twofa_secret,
     hash_password,
     login_handler,
-    verify_twofa_handler,
     change_password,
-    get_new_token,
+    totp_setup,
+    totp_confirm,
+    totp_disable,
 )
+
 from dto.write_dto import (
     KeyResultWriteDTO,
     ObjectiveWriteDTO,
@@ -30,7 +31,6 @@ from models.user import User
 from models.task import Task
 from models.project_objective import project_objective
 from models.user_project import UserProject, UserRole
-from models.login_challenge import LoginChallenge
 
 
 from dto.read_dto import (
@@ -324,13 +324,12 @@ async def create_user(
     # randomly generate a user_id
     user_id = uuid.uuid4()
     password_hash = hash_password(data.password)
-    two_fa_secret = generate_twofa_secret()
     user = User(
         id=user_id,
         name=data.name,
         email=data.email,
         password_hash=password_hash,
-        two_fa_secret=two_fa_secret,
+        two_fa_secret="",
     )
 
     db_session.add(user)
@@ -672,7 +671,7 @@ async def add_objective_to_objective(
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///:memory:", #connection_string="sqlite+aiosqlite:///okr.db", if /login/2fa returns challenge not found 
+    connection_string="sqlite+aiosqlite:///:memory:",  # switch to file db for persistence
 
     session_config=session_config,
     create_all=True,
@@ -701,7 +700,9 @@ authenticated_router = Router(
         get_user_role,
         add_objective_to_objective,
         change_password,
-        get_new_token,
+        totp_setup,
+        totp_confirm,
+        totp_disable,
         delete_project,
         delete_objective,
         delete_key_result,
@@ -719,7 +720,6 @@ public_router = Router(
         hello_world,
         main_page,
         login_handler,
-        verify_twofa_handler,
         # make all files in the images folder available under the /images/{filename} path
         create_static_files_router(path="/images", directories=["images"]),
         # TODO: creating users should not be possible without authentication!

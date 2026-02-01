@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-import secrets
 from typing import Annotated, Any
+import re
+import pyotp
 
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post, patch
@@ -24,18 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from responses import SuccessResponse
 
-import os
-import uuid
-import asyncio
-import hmac
-import hashlib
-import smtplib
-from email.message import EmailMessage
-
-
-from sqlalchemy import delete as sa_delete
-from models.login_challenge import LoginChallenge
-
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
 
@@ -44,54 +33,36 @@ JWT_SECRET = "secretfortesting"
 # how long tokens are valid. If the time has passed, users are automatically getting logged out
 JWT_VALIDITY_DURATION_HOURS = 7 * 24  # 1 week
 
-# 2FA Settings
-TWOFA_CODE_TTL_MINUTES = 10
-TWOFA_MAX_ATTEMPTS = 5
-OTP_SECRET = os.environ.get("OTP_SECRET", JWT_SECRET)
+# TOTP Settings
+TOTP_ISSUER = "OKR-Tool"
+TOTP_PENDING_PREFIX = "pending:"
+TOTP_VALID_WINDOW = 1
+_BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
-# SMTP settings (Email)
-SMTP_HOST = os.environ.get("SMTP_HOST")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER")
-SMTP_PASS = os.environ.get("SMTP_PASS")
-SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "no-reply@example.com")
+def _normalize_totp_code(code: str | None) -> str | None:
+    if not code:
+        return None
+    return re.sub(r"[\s-]", "", code) or None
 
-DEV_PRINT_2FA = os.environ.get("DEV_PRINT_2FA", "true").lower() == "true"
+def _parse_totp_secret(raw: str | None) -> tuple[str | None, bool]:
+    if not raw:
+        return None, False
+    pending = raw.startswith(TOTP_PENDING_PREFIX)
+    secret = raw[len(TOTP_PENDING_PREFIX):] if pending else raw
+    secret = secret.replace(" ", "").upper()
+    if not _BASE32_RE.fullmatch(secret):
+        return None, pending
+    return secret, pending
 
-def _hash_2fa_code(challenge_id: str, code: str) -> str:
-    # HMAC: even when someone sees the DB the OTP_SECRET cannot be offline bruteforced
-    msg = f"{challenge_id}:{code}".encode("utf-8")
-    return hmac.new(OTP_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+def verify_totp(secret: str, code: str) -> bool:
+    return pyotp.TOTP(secret).verify(code, valid_window=TOTP_VALID_WINDOW)
 
+def generate_totp_secret() -> str:
+    return pyotp.random_base32()
 
-def _send_email_sync(to_email: str, subject: str, body: str) -> None:
-    if not SMTP_HOST:
-        raise RuntimeError("SMTP_HOST is not configured")
+def totp_provisioning_uri(secret: str, user_email: str) -> str:
+    return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=TOTP_ISSUER)
 
-    msg = EmailMessage()
-    msg["From"] = SMTP_FROM
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.set_content(body)
-
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-        server.starttls()
-        if SMTP_USER and SMTP_PASS:
-            server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
-
-
-async def send_2fa_email(to_email: str, code: str) -> None:
-    subject = "Dein Login-Code"
-    body = f"Dein 2FA-Code lautet: {code}\n\nEr ist {TWOFA_CODE_TTL_MINUTES} Minuten gültig."
-    if SMTP_HOST:
-        await asyncio.to_thread(_send_email_sync, to_email, subject, body)
-    else:
-        # Dev-Fallback: damit du testen kannst, ohne SMTP einzurichten
-        if DEV_PRINT_2FA:
-            print(f"[DEV] 2FA code for {to_email}: {code}")
-        else:
-            raise ClientException("E-Mail Versand ist nicht konfiguriert (SMTP_* fehlt)")
 
 
 @dataclass
@@ -142,7 +113,7 @@ class LoginRequest:
 
     email: str
     password: str
-    two_fa_code: str | None
+    two_fa_code: str | None = None
 
 
 @dataclass
@@ -150,20 +121,9 @@ class LoginResponse:
     jwt_token: str
 
 @dataclass
-class LoginTwoFaRequiredResponse:
-    requires_2fa: bool
-    challenge_id: str
-
-@dataclass
 class ChangePasswordRequest:
     old_password: str
     new_password: str
-
-@dataclass
-class TwoFaVerifyRequest:
-    challenge_id: str
-    code: str    
-
 
 @post("/login")
 async def login_handler(
@@ -173,9 +133,7 @@ async def login_handler(
     """
     Login to the application.
 
-    param data: the login data the user entered
-
-    return: a JSON object containing the generated jwt token or a 2FA challenge_id if 2FA is required
+    return: a JSON object containing the generated jwt token
     """
     user_query = await db_session.execute(select(User).where(User.email == data.email))
     user = user_query.scalar_one_or_none()
@@ -183,42 +141,14 @@ async def login_handler(
     if not user or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
 
-    # TODO: verify 2FA code
-    # If 2FA is enabled, do not issue a JWT yet. Instead create a login challenge and send a one-time code. 
-    # The client must then call POST /login/2fa with challenge_id + code to obtain a JWT
-    if getattr(user, "two_fa_enabled", True):
-        await db_session.execute(
-            sa_delete(LoginChallenge).where(LoginChallenge.user_id == user.id)
-        )
-
-        challenge_id = uuid.uuid4()
-        code = f"{secrets.randbelow(1_000_000):06d}"  # 000000 - 999999
-
-        expires_at = datetime.utcnow() + timedelta(
-            minutes=TWOFA_CODE_TTL_MINUTES
-        )
-        code_hash = _hash_2fa_code(str(challenge_id), code)
-
-        challenge = LoginChallenge(
-            id=challenge_id,
-            user_id=user.id,
-            code_hash=code_hash,
-            expires_at=expires_at,
-            attempts=0,
-        )
-
-        db_session.add(challenge)
-        await db_session.commit()
-
-        await send_2fa_email(user.email, code)
-
-        return Response(
-            content=LoginTwoFaRequiredResponse(
-                requires_2fa=True,
-                challenge_id=str(challenge_id),
-            )
-        )
-
+    # TOTP 2FA: only required if user has a configured secret (and not pending)
+    secret, pending = _parse_totp_secret(user.two_fa_secret)
+    if secret and not pending:
+        code = _normalize_totp_code(data.two_fa_code)
+        if not code:
+            raise ClientException("2FA code required")
+        if not verify_totp(secret, code):
+            raise ClientException("invalid 2FA code")
 
     jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
     return Response(
@@ -226,53 +156,6 @@ async def login_handler(
         headers={"Authorization": jwt_token},
     )
 
-@post("/login/2fa")
-async def verify_twofa_handler(
-    data: Annotated[TwoFaVerifyRequest, Body(title="2FA Verify Request")],
-    db_session: AsyncSession,
-) -> Response[LoginResponse]:
-    """
-    Verify a 2FA login challenge.
-
-    param data: challenge_id and the 6-digit code sent via email
-    return: a JSON object containing the generated jwt token
-    """
-    try:
-        challenge_uuid = uuid.UUID(data.challenge_id)
-    except ValueError:
-        raise ClientException("Invalid challenge_id format")
-
-    challenge = await db_session.get(LoginChallenge, challenge_uuid)
-
-    if not challenge:
-        raise NotFoundException("2FA challenge not found")
-
-    now = datetime.utcnow()
-    if challenge.expires_at < now:
-        await db_session.delete(challenge)
-        await db_session.commit()
-        raise ClientException("2FA code expired")
-
-    if challenge.attempts >= TWOFA_MAX_ATTEMPTS:
-        await db_session.delete(challenge)
-        await db_session.commit()
-        raise ClientException("Too many attempts")
-
-    expected_hash = _hash_2fa_code(str(challenge_uuid), data.code)
-    if not hmac.compare_digest(expected_hash, challenge.code_hash):
-        challenge.attempts += 1
-        await db_session.commit()
-        raise ClientException("Invalid 2FA code")
-
-    user = await db_session.get(User, challenge.user_id)
-    if not user:
-        raise NotFoundException("User not found")
-
-    await db_session.delete(challenge)
-    await db_session.commit()
-
-    jwt_token = create_jwt(user, JWT_VALIDITY_DURATION_HOURS)
-    return Response(content=LoginResponse(jwt_token=jwt_token), headers={"Authorization": jwt_token})
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
@@ -329,13 +212,6 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-def generate_twofa_secret() -> str:
-    """
-    generates a random 2FA Token
-    """
-    return secrets.token_hex(16)
-
-
 @patch("/users/{user_id:str}/password/change")
 async def change_password(
     db_session: AsyncSession,
@@ -365,23 +241,95 @@ async def change_password(
 
     return SuccessResponse("password successfully changed")
 
+def _ensure_self_or_admin(connection: ASGIConnection, user_id: str) -> None:
+    u = connection.user
+    if not u:
+        raise NotAuthorizedException()
+    if str(u.id) != user_id and not getattr(u, "is_admin", False):
+        raise NotAuthorizedException()
 
-@post("/users/{user_id:str}/auth_token")
-async def get_new_token(
+@dataclass
+class TotpSetupResponse:
+    secret: str
+    otpauth_uri: str
+
+@dataclass
+class TotpCodeRequest:
+    code: str
+
+@post("/users/{user_id:str}/2fa/totp/setup")
+async def totp_setup(
+    connection: ASGIConnection,
     db_session: AsyncSession,
     user_id: str = Parameter(),
-) -> SuccessResponse:
-    """
-    Change a user's token.
-    """
+) -> Response:
+    _ensure_self_or_admin(connection, user_id)
 
-    # load user
     user_query = await db_session.execute(select(User).where(User.id == user_id))
     user = user_query.scalar_one_or_none()
     if not user:
         raise NotFoundException("User not found")
 
-    user.two_fa_secret = generate_twofa_secret()
+    secret = generate_totp_secret()
+    user.two_fa_secret = TOTP_PENDING_PREFIX + secret
     await db_session.commit()
 
-    return SuccessResponse("new 2FA token generated")
+    uri = totp_provisioning_uri(secret, user.email)
+    return Response(content=TotpSetupResponse(secret=secret, otpauth_uri=uri))
+
+@post("/users/{user_id:str}/2fa/totp/confirm")
+async def totp_confirm(
+    connection: ASGIConnection,
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+    data: TotpCodeRequest = Body(title="TOTP Confirm Request"),
+) -> SuccessResponse:
+    _ensure_self_or_admin(connection, user_id)
+
+    user_query = await db_session.execute(select(User).where(User.id == user_id))
+    user = user_query.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    secret, pending = _parse_totp_secret(user.two_fa_secret)
+    if not secret or not pending:
+        raise ClientException("no pending TOTP setup")
+
+    code = _normalize_totp_code(data.code)
+    if not code or not verify_totp(secret, code):
+        raise ClientException("invalid 2FA code")
+
+    user.two_fa_secret = secret
+    await db_session.commit()
+    return SuccessResponse("TOTP 2FA enabled")
+
+@post("/users/{user_id:str}/2fa/totp/disable")
+async def totp_disable(
+    connection: ASGIConnection,
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+    data: TotpCodeRequest = Body(title="TOTP Disable Request"),
+) -> SuccessResponse:
+    _ensure_self_or_admin(connection, user_id)
+
+    user_query = await db_session.execute(select(User).where(User.id == user_id))
+    user = user_query.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    secret, pending = _parse_totp_secret(user.two_fa_secret)
+    if not secret:
+        return SuccessResponse("TOTP 2FA already disabled")
+
+    if pending:
+        user.two_fa_secret = ""
+        await db_session.commit()
+        return SuccessResponse("pending TOTP setup cleared")
+
+    code = _normalize_totp_code(data.code)
+    if not code or not verify_totp(secret, code):
+        raise ClientException("invalid 2FA code")
+
+    user.two_fa_secret = ""
+    await db_session.commit()
+    return SuccessResponse("TOTP 2FA disabled")
