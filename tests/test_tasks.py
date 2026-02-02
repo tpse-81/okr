@@ -3,7 +3,7 @@ import uuid
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from utils import create_objective, create_project, create_key_result
+from utils import create_objective, create_project, create_key_result, create_task
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
