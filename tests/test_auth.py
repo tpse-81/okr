@@ -10,6 +10,30 @@ from time import sleep
 app.debug = True
 
 
+def test_create_invalid_user(client):
+    # username is an email
+    response = client.post(
+        "/users/create",
+        json={
+            "name": "foo@bar.com",
+            "email": "example@test.com",
+            "password": "testpassword123",
+        },
+    )
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+    # invalid email address
+    response = client.post(
+        "/users/create",
+        json={
+            "name": "foobar",
+            "email": "email-without-at-sign",
+            "password": "testpassword123",
+        },
+    )
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+
 def test_login_wrong_password(client, test_user):
     password = test_user["password"] + "randomstuff"
     response = client.post(

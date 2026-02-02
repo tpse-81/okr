@@ -41,6 +41,7 @@ from dto.read_dto import (
 )
 
 import project_utils
+from helpers import is_valid_email
 
 from sqlalchemy import select, exists, and_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -423,6 +424,12 @@ async def create_user(
     param data: the user data to create a new user from
     return: whether the user was successfully created
     """
+    if is_valid_email(data.name):
+        raise ClientException("usernames must not be an e-mail addresses!")
+
+    if not is_valid_email(data.email):
+        raise ClientException("invalid email address")
+
     # randomly generate a user_id
     user_id = uuid.uuid4()
     password_hash = hash_password(data.password)
