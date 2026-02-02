@@ -86,7 +86,7 @@ def test_delete_task(auth_client):
     assert response.status_code == HTTP_200_OK
     assert len(response.json()) == 0
 
-    
+
 def test_update_task(auth_client):
     project_id = create_project(auth_client)
     objective_id = create_objective(auth_client, project_id)
