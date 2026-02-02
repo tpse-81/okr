@@ -29,7 +29,6 @@ from config import config
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
 
-<<<<<<< HEAD
 # TODO: make configurable!
 JWT_SECRET = "secretfortesting"
 # how long tokens are valid. If the time has passed, users are automatically getting logged out
@@ -64,10 +63,6 @@ def generate_totp_secret() -> str:
 
 def totp_provisioning_uri(secret: str, user_email: str) -> str:
     return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=TOTP_ISSUER)
-
-
-=======
->>>>>>> origin/main
 
 @dataclass
 class JwtUser:
