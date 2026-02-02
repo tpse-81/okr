@@ -23,7 +23,6 @@ class JWTSettings:
     """
 
 
-# TODO: actually create admin account on app startup
 @attrs.frozen
 class Admin:
     username: str = "admin"
