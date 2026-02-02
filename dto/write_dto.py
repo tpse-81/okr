@@ -33,7 +33,7 @@ class KeyResultWriteDTO(SQLAlchemyDTO[KeyResult]):
     DTO used for serializing KeyResult models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "objective", "tasks"})
+    config = DTOConfig(exclude={"id", "objective_id", "objective", "tasks"})
 
 
 class TaskWriteDTO(SQLAlchemyDTO[Task]):

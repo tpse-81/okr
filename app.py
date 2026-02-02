@@ -253,6 +253,35 @@ async def create_task_for_key_result(
     return SuccessResponse("successfully created task")
 
 
+@patch("/tasks/{task_id:str}", dto=TaskWriteDTO, return_dto=TaskReadDTO)
+async def update_task(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Task,
+    task_id: str = Parameter(),
+) -> Task:
+    """
+    Update an existing task.
+
+    param data: the updated task information to store
+    param task_id: the ID of the task
+    return: the updated task
+    """
+
+    task = await db_session.execute(select(Task).where(Task.id == task_id))
+    task = task.scalar_one_or_none()
+    if task is None:
+        raise NotFoundException("task doesn't exist")
+
+    task.description = data.description
+    task.task_state = data.task_state
+
+    # commit updated task to database
+    await db_session.commit()
+
+    return task
+
+
 @post("/projects", dto=ProjectWriteDTO, return_dto=None)
 async def create_project(
     db_session: AsyncSession,
@@ -282,6 +311,37 @@ async def create_project(
     await db_session.commit()
 
     return SuccessResponse("successfully created project")
+
+
+@patch("/projects/{project_id:str}", dto=ProjectWriteDTO, return_dto=ProjectReadDTO)
+async def update_project(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Project,
+    project_id: str = Parameter(),
+) -> Project:
+    """
+    Update an existing project.
+
+    param data: the updated project information to store
+    param project_id: the ID of the project
+    return: the updated project
+    """
+
+    project = await db_session.execute(select(Project).where(Project.id == project_id))
+    project = project.scalar_one_or_none()
+    if project is None:
+        raise NotFoundException("project doesn't exist")
+
+    project.name = data.name
+    project.deadline = data.deadline
+    project.done = data.done
+    project.icon = data.icon
+
+    # commit updated project to database
+    await db_session.commit()
+
+    return project
 
 
 @delete("/projects/{project_id:str}")
@@ -382,11 +442,14 @@ async def create_user(
     return SuccessResponse("successfully created user")
 
 
-@post("/key_results", dto=KeyResultWriteDTO, return_dto=None)
+@post(
+    "/objectives/{objective_id:str}/key_results", dto=KeyResultWriteDTO, return_dto=None
+)
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
     data: KeyResult,
+    objective_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Create a new key result.
@@ -394,17 +457,17 @@ async def create_key_result(
     param data: the key result to create
     return: a JSON object containing a success message
     """
-    if not data.objective_id:
+    if not objective_id:
         raise ClientException("invalid objective id")
 
-    if not await objective_exists(db_session, data.objective_id):
+    if not await objective_exists(db_session, objective_id):
         raise NotFoundException("Objective doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        objective_id=data.objective_id,
+        objective_id=objective_id,
         description=data.description,
         start_value=data.start_value,
         end_value=data.end_value,
@@ -415,6 +478,42 @@ async def create_key_result(
     await db_session.commit()
 
     return SuccessResponse("successfully created key result")
+
+
+@patch(
+    "/key_results/{key_result_id:str}",
+    dto=KeyResultWriteDTO,
+    return_dto=KeyResultReadDTO,
+)
+async def update_key_result(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: KeyResult,
+    key_result_id: str = Parameter(),
+) -> KeyResult:
+    """
+    Update an key_result.
+
+    param data: the update key result information to store
+    param key_result_id: the ID of the key result to update
+    return: the updated key result
+    """
+
+    key_result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = key_result.scalar_one_or_none()
+    if key_result is None:
+        raise NotFoundException("key result doesn't exist")
+
+    key_result.description = data.description
+    key_result.start_value = data.start_value
+    key_result.end_value = data.end_value
+
+    # commit updated key result to database
+    await db_session.commit()
+
+    return key_result
 
 
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
@@ -446,6 +545,39 @@ async def create_objective(
     await db_session.commit()
 
     return SuccessResponse("successfully created objective")
+
+
+@patch(
+    "/objectives/{objective_id:str}", dto=ObjectiveWriteDTO, return_dto=ObjectiveReadDTO
+)
+async def update_objective(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Objective,
+    objective_id: str = Parameter(),
+) -> Objective:
+    """
+    Update an objective.
+
+    param data: the update objective information to store
+    param objective_id: the ID of the objective to update
+    return: the updated objective
+    """
+
+    objective = await db_session.execute(
+        select(Objective).where(Objective.id == objective_id)
+    )
+    objective = objective.scalar_one_or_none()
+    if objective is None:
+        raise NotFoundException("objective doesn't exist")
+
+    objective.name = data.name
+    objective.description = data.description
+
+    # commit updated objective to database
+    await db_session.commit()
+
+    return objective
 
 
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
@@ -834,14 +966,18 @@ authenticated_router = Router(
     route_handlers=[
         get_projects,
         create_project,
+        update_project,
         get_objectives,
         create_objective,
+        update_objective,
         get_key_results,
         create_key_result,
+        update_key_result,
         get_users,
         get_tasks,
         get_tasks_from_key_result,
         create_task_for_key_result,
+        update_task,
         get_objectives_for_project,
         get_key_results_for_objective,
         get_users_for_project,

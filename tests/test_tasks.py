@@ -3,7 +3,7 @@ import uuid
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from utils import create_objective, create_project, create_key_result
+from utils import create_objective, create_project, create_key_result, create_task
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -85,3 +85,24 @@ def test_delete_task(auth_client):
     response = auth_client.get(f"/key_results/{key_result_id}/tasks")
     assert response.status_code == HTTP_200_OK
     assert len(response.json()) == 0
+
+
+def test_update_task(auth_client):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id)
+    task_id = create_task(auth_client, key_result_id)
+
+    response = auth_client.patch(
+        f"/tasks/{task_id}",
+        json={"description": "newdescription", "task_state": "done"},
+    )
+    assert response.status_code == HTTP_200_OK
+
+    response = auth_client.get(f"/key_results/{key_result_id}/tasks")
+    assert response.status_code == HTTP_200_OK
+
+    # check if new values have been saved
+    task = response.json()[-1]
+    assert task["description"] == "newdescription"
+    assert task["task_state"] == "done"

@@ -1,6 +1,6 @@
 from litestar.testing import TestClient
 
-from utils import create_project
+from utils import create_project, create_objective
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -41,6 +41,25 @@ def test_empty_project_check(auth_client):
     response = auth_client.get("/objectives")
     assert response.status_code == HTTP_200_OK
     assert len(response.json()) == 1
+
+
+def test_update_objective(auth_client):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+
+    response = auth_client.patch(
+        f"/objectives/{objective_id}",
+        json={"name": "newname", "description": "newdescription"},
+    )
+    assert response.status_code == HTTP_200_OK
+
+    response = auth_client.get("/objectives")
+    assert response.status_code == HTTP_200_OK
+
+    # check if new values have been saved
+    objective = response.json()[-1]
+    assert objective["name"] == "newname"
+    assert objective["description"] == "newdescription"
 
 
 def test_objective_check_unauthorized(auth_client):

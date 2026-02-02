@@ -37,9 +37,8 @@ def create_objective(client, project_id, name="name", description="description")
 
 def create_key_result(client, objective_id):
     key_result = client.post(
-        "/key_results",
+        f"/objectives/{objective_id}/key_results",
         json={
-            "objective_id": objective_id,
             "description": "description",
             "start_value": 15,
             "end_value": 10,
