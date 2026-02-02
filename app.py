@@ -1,9 +1,11 @@
+import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
+
 from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
-from litestar.static_files import create_static_files_router
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.config.cors import CORSConfig
 
@@ -24,7 +26,7 @@ from dto.write_dto import (
     ProjectWriteDTO,
     TaskWriteDTO,
 )
-from models.project import Project
+from models.project import Project, ArchiveReason
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
@@ -41,6 +43,8 @@ from dto.read_dto import (
     UserReadDTO,
 )
 
+import project_utils
+
 from sqlalchemy import select, exists, and_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import selectinload
@@ -56,6 +60,7 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 
 import uuid
 
+from config import config
 from responses import SuccessResponse, UserRoleResponse
 
 
@@ -85,15 +90,14 @@ async def hello_world(
     return {"hello": "world"}
 
 
-@get("/", media_type="text/html", include_in_schema=False)
+@get(["/", "/health", "/healthz"], include_in_schema=False)
 async def main_page() -> str:
     """
-    Renders the main HTML page.
+    Renders a short status message if the app is running.
 
-    return: a raw HTML string
+    return: a raw text string
     """
-    with open("main.html", "r") as f:
-        return f.read()
+    return "OK"
 
 
 @get("/projects", return_dto=ProjectReadDTO)
@@ -156,6 +160,10 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     objective = await db_session.get(Objective, objective_id)
     if not await objective_exists(db_session, objective_id):
         raise NotFoundException("objective not found")
+
+    # deleting an objective may force the children to become archived
+    # TODO: children should be linked to the parent of the objective that is getting deleted
+    # TODO: archiving status should be checked, after all children are linked
 
     await db_session.delete(objective)
     await db_session.commit()
@@ -243,8 +251,9 @@ async def create_project(
         id=project_id,
         name=data.name,
         deadline=data.deadline,
-        creation_date=data.creation_date,
+        creation_date=datetime.now(tz=timezone.utc),
         done=data.done,
+        icon=data.icon,
     )
 
     # create new database entry for project with parameters from URL
@@ -266,14 +275,17 @@ async def delete_project(
     param project_id: the ID of the project to delete
     """
 
-    if not await project_exists(db_session, project_id):
+    project = await db_session.get(Project, project_id)
+    if not project:
         raise NotFoundException("Project not found")
 
-    objectives_for_project = await db_session.scalars(
-        select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
+    # make the project archived for the archive_check logic
+    project.is_archived = True
+
+    objectives_for_project = await project_utils.get_objectives_for_project(
+        db_session, project_id
     )
+    remaining_objectives: list[Objective] = []
 
     for objective in objectives_for_project:
         has_other_project = await db_session.scalar(
@@ -288,6 +300,15 @@ async def delete_project(
         )
         if not has_other_project:
             await db_session.delete(objective)
+        else:
+            remaining_objectives.append(objective)
+
+    await db_session.flush()
+
+    # deleting a project may force the remaining objectives to become archived
+    await project_utils.archive_objective_including_children(
+        db_session, remaining_objectives
+    )
 
     await db_session.execute(sa_delete(Project).where(Project.id == project_id))
     await db_session.commit()
@@ -330,6 +351,7 @@ async def create_user(
         email=data.email,
         password_hash=password_hash,
         two_fa_secret="",
+        is_admin=False,
     )
 
     db_session.add(user)
@@ -416,18 +438,7 @@ async def get_objectives_for_project(
     return: a JSON list of objectives related to the given project
     """
 
-    stmt = (
-        select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
-        .options(
-            selectinload(Objective.children)
-        )  # eagerly load all Objective children
-    )
-    result = await db_session.execute(stmt)
-    objectives = result.scalars().all()  # list of all Objectives
-
-    return list(objectives)
+    return await project_utils.get_objectives_for_project(db_session, project_id)
 
 
 @get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
@@ -522,7 +533,7 @@ async def add_user_to_project(
     )
 
 
-@post("projects/{project_id:str}/objectives/{objective_id:str}")
+@post("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
@@ -548,6 +559,12 @@ async def add_objective_to_project(
     # link the objective to the project (if already linked nothing happens)
     if objective not in project.objectives:
         project.objectives.append(objective)
+
+    # if the project was archived, the objective archive status won't be changed, so only this one check is necessary
+    if not project.is_archived:
+        await project_utils.unarchive_objective_including_children(
+            db_session, [objective]
+        )
 
     await db_session.commit()
 
@@ -663,16 +680,127 @@ async def add_objective_to_objective(
 
     if child.parent_id != parent_objective_id:
         child.parent_id = parent_objective_id
-        await db_session.commit()
+        await db_session.flush()
+
+    if not parent.is_archived:
+        await project_utils.unarchive_objective_including_children(db_session, [child])
+    else:
+        await project_utils.archive_objective_including_children(db_session, [child])
+
+    await db_session.commit()
 
     return SuccessResponse("Objective linked successfully")
 
 
+@patch("projects/{project_id:str}/archive")
+async def archive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    archive_reason: ArchiveReason = Parameter(),
+) -> SuccessResponse:
+    """
+    Archives a project
+
+    param project_id: the ID of the project
+    param archive_reason: the reason for archiving
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    project.is_archived = True
+    project.archive_reason = archive_reason
+
+    # check if associated objectives and their children need to be archived
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+    await project_utils.archive_objective_including_children(db_session, objectives)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"Project {project.name} is archived")
+
+
+@patch("projects/{project_id:str}/unarchive")
+async def unarchive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    new_deadline: datetime = Parameter(),
+) -> SuccessResponse:
+    """
+    Unarchives a project
+
+    param project_id: the ID of the project
+    param archive_reason: the reason for archiving
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    project.is_archived = False
+    project.archive_reason = None
+    await project_utils.change_project_deadline(db_session, project_id, new_deadline)
+
+    # unarchive all linked objectives and their children
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+    await project_utils.unarchive_objective_including_children(db_session, objectives)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"Project {project.name} is unarchived")
+
+
+@get("/projects/archived", return_dto=ProjectReadDTO)
+async def get_archived_projects(db_session: AsyncSession) -> list[Project]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Project).where(Project.is_archived.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@get("/objectives/archived", return_dto=ObjectiveReadDTO)
+async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Objective).where(Objective.is_archived.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@patch("/projects/{project_id:str}/deadline/extend")
+async def change_project_deadline(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    new_deadline: datetime = Parameter(),
+) -> SuccessResponse:
+    """
+    Extends the project deadline
+
+    param project_id: the ID of the project
+    param new_deadline: the new deadline of the project
+    """
+
+    return await project_utils.change_project_deadline(
+        db_session, project_id, new_deadline
+    )
+
+
+# during test execution, data is written into memory and not
+# into the actual persistent database file!
+is_pytest_active = "PYTEST_VERSION" in os.environ
+database_url = (
+    "sqlite+aiosqlite:///:memory:" if is_pytest_active else config.database_url
+)
 # Create a session config that is linked to an SQLite database.
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///:memory:",  # switch to file db for persistence
-
+    connection_string=database_url,
     session_config=session_config,
     create_all=True,
 )
@@ -707,6 +835,12 @@ authenticated_router = Router(
         delete_objective,
         delete_key_result,
         delete_task,
+        get_new_token,
+        archive_project,
+        unarchive_project,
+        get_archived_projects,
+        get_archived_objectives,
+        change_project_deadline,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
@@ -720,18 +854,46 @@ public_router = Router(
         hello_world,
         main_page,
         login_handler,
-        # make all files in the images folder available under the /images/{filename} path
-        create_static_files_router(path="/images", directories=["images"]),
         # TODO: creating users should not be possible without authentication!
         create_user,
     ],
     tags=["public"],
 )
 
+
+async def create_admin_user(app: Litestar):
+    """
+    Create the admin user configured in the `config` file.
+
+    If a user with the given admin username already exists, no admin user is created.
+    """
+    sqlalchemy_plugin = app.plugins.get(SQLAlchemyPlugin)
+    db_config = sqlalchemy_plugin.config[0]
+    session_maker = db_config.create_session_maker()
+    async with session_maker() as db_session:
+        admin_exists = await db_session.scalar(
+            select(exists(User).where(User.name == config.admin.username))
+        )
+
+        if not admin_exists:
+            user_id = uuid.uuid4()
+            user = User(
+                id=user_id,
+                name=config.admin.username,
+                email=config.admin.email,
+                password_hash=config.admin.password_hash,
+                two_fa_secret=generate_twofa_secret(),
+                is_admin=True,
+            )
+
+            db_session.add(user)
+            await db_session.commit()
+
+
 # Run the web app
 app = Litestar(
-    route_handlers=[public_router, authenticated_router],
     debug=True,
+    route_handlers=[public_router, authenticated_router],
     plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
     openapi_config=OpenAPIConfig(
         title="OKR-Tool",
@@ -757,4 +919,5 @@ app = Litestar(
         ),
     ),
     cors_config=cors_config,
+    on_startup=[create_admin_user],
 )
