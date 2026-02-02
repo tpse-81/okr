@@ -835,7 +835,6 @@ authenticated_router = Router(
         delete_objective,
         delete_key_result,
         delete_task,
-        get_new_token,
         archive_project,
         unarchive_project,
         get_archived_projects,
@@ -882,7 +881,7 @@ async def create_admin_user(app: Litestar):
                 name=config.admin.username,
                 email=config.admin.email,
                 password_hash=config.admin.password_hash,
-                two_fa_secret=generate_twofa_secret(),
+                two_fa_secret=""
                 is_admin=True,
             )
 
