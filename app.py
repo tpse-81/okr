@@ -881,7 +881,7 @@ async def create_admin_user(app: Litestar):
                 name=config.admin.username,
                 email=config.admin.email,
                 password_hash=config.admin.password_hash,
-                two_fa_secret=""
+                two_fa_secret="",
                 is_admin=True,
             )
 
