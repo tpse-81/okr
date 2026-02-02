@@ -75,6 +75,14 @@ async def objective_exists(db_session: AsyncSession, objective_id: str) -> bool:
     return objective is not None
 
 
+async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> bool:
+    result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = result.scalar_one_or_none()
+    return key_result is not None
+
+
 @get("/hello")
 async def hello_world(
     db_session: AsyncSession, db_engine: AsyncEngine
@@ -166,6 +174,19 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     await db_session.commit()
 
 
+@get("/tasks", return_dto=TaskReadDTO)
+async def get_tasks(db_session: AsyncSession) -> list[Task]:
+    """
+    param key_result_id: the UUID of the key result whose tasks should be returned
+
+    Gets the list of task for a given key result
+
+    """
+
+    result = await db_session.scalars(select(Task))
+    return list(result)
+
+
 @get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
 async def get_tasks_from_key_result(
     key_result_id: str, db_session: AsyncSession
@@ -211,6 +232,9 @@ async def create_task_for_key_result(
     param description: the description of the key result
     param task_state: the state of the task can be ONLY one of the following: open", "planned", "in_progress", "done" or "cancelled"
     """
+
+    if not await key_result_exists(db_session, key_result_id):
+        raise NotFoundException("key result not found")
 
     # randomly generate a task id
     task_id = uuid.uuid4()
@@ -950,6 +974,7 @@ authenticated_router = Router(
         create_key_result,
         update_key_result,
         get_users,
+        get_tasks,
         get_tasks_from_key_result,
         create_task_for_key_result,
         update_task,
