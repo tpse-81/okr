@@ -68,6 +68,25 @@ def test_change_project_deadline(auth_client):
     assert project["deadline"] == "2025-08-13T10:05:00Z"
 
 
+def test_update_project(auth_client):
+    project_id = create_project(auth_client)
+
+    response = auth_client.patch(
+        f"/projects/{project_id}",
+        json={"name": "newname", "deadline": "2027-08-13T10:05:00Z", "done": True},
+    )
+    assert response.status_code == HTTP_200_OK
+
+    response = auth_client.get("/projects")
+    assert response.status_code == HTTP_200_OK
+
+    # check if new values have been saved
+    project = response.json()[-1]
+    assert project["name"] == "newname"
+    assert project["deadline"] == "2027-08-13T10:05:00Z"
+    assert project["done"]
+
+
 def test_project_check_unauthorized():
     with TestClient(app=app) as client:
         response = client.post(
