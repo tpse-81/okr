@@ -40,29 +40,35 @@ TOTP_PENDING_PREFIX = "pending:"
 TOTP_VALID_WINDOW = 1
 _BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
+
 def _normalize_totp_code(code: str | None) -> str | None:
     if not code:
         return None
     return re.sub(r"[\s-]", "", code) or None
 
+
 def _parse_totp_secret(raw: str | None) -> tuple[str | None, bool]:
     if not raw:
         return None, False
     pending = raw.startswith(TOTP_PENDING_PREFIX)
-    secret = raw[len(TOTP_PENDING_PREFIX):] if pending else raw
+    secret = raw[len(TOTP_PENDING_PREFIX) :] if pending else raw
     secret = secret.replace(" ", "").upper()
     if not _BASE32_RE.fullmatch(secret):
         return None, pending
     return secret, pending
 
+
 def verify_totp(secret: str, code: str) -> bool:
     return pyotp.TOTP(secret).verify(code, valid_window=TOTP_VALID_WINDOW)
+
 
 def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
+
 def totp_provisioning_uri(secret: str, user_email: str) -> str:
     return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=TOTP_ISSUER)
+
 
 @dataclass
 class JwtUser:
@@ -119,10 +125,12 @@ class LoginRequest:
 class LoginResponse:
     jwt_token: str
 
+
 @dataclass
 class ChangePasswordRequest:
     old_password: str
     new_password: str
+
 
 @post("/login")
 async def login_handler(
@@ -154,7 +162,6 @@ async def login_handler(
         content=LoginResponse(jwt_token=jwt_token),
         headers={"Authorization": jwt_token},
     )
-
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
@@ -242,6 +249,7 @@ async def change_password(
 
     return SuccessResponse("password successfully changed")
 
+
 def _ensure_self_or_admin(connection: ASGIConnection, user_id: str) -> None:
     u = connection.user
     if not u:
@@ -249,14 +257,17 @@ def _ensure_self_or_admin(connection: ASGIConnection, user_id: str) -> None:
     if str(u.id) != user_id and not getattr(u, "is_admin", False):
         raise NotAuthorizedException()
 
+
 @dataclass
 class TotpSetupResponse:
     secret: str
     otpauth_uri: str
 
+
 @dataclass
 class TotpCodeRequest:
     code: str
+
 
 @post("/users/{user_id:str}/2fa/totp/setup")
 async def totp_setup(
@@ -277,6 +288,7 @@ async def totp_setup(
 
     uri = totp_provisioning_uri(secret, user.email)
     return Response(content=TotpSetupResponse(secret=secret, otpauth_uri=uri))
+
 
 @post("/users/{user_id:str}/2fa/totp/confirm")
 async def totp_confirm(
@@ -303,6 +315,7 @@ async def totp_confirm(
     user.two_fa_secret = secret
     await db_session.commit()
     return SuccessResponse("TOTP 2FA enabled")
+
 
 @post("/users/{user_id:str}/2fa/totp/disable")
 async def totp_disable(
