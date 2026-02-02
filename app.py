@@ -375,11 +375,12 @@ async def create_user(db_session: AsyncSession, data: CreateUserRequest) -> Succ
     return SuccessResponse("successfully created user")
 
 
-@post("/key_results", dto=KeyResultWriteDTO, return_dto=None)
+@post("/objectives/{objective_id:str}/key_results", dto=KeyResultWriteDTO, return_dto=None)
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
     data: KeyResult,
+    objective_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Create a new key result.
@@ -387,17 +388,17 @@ async def create_key_result(
     param data: the key result to create
     return: a JSON object containing a success message
     """
-    if not data.objective_id:
+    if not objective_id:
         raise ClientException("invalid objective id")
 
-    if not await objective_exists(db_session, data.objective_id):
+    if not await objective_exists(db_session, objective_id):
         raise NotFoundException("Objective doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        objective_id=data.objective_id,
+        objective_id=objective_id,
         description=data.description,
         start_value=data.start_value,
         end_value=data.end_value,
@@ -408,6 +409,36 @@ async def create_key_result(
     await db_session.commit()
 
     return SuccessResponse("successfully created key result")
+
+
+@patch("/key_results/{key_result_id:str}", dto=KeyResultWriteDTO, return_dto=KeyResultReadDTO)
+async def update_key_result(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: KeyResult,
+    key_result_id: str = Parameter(),
+) -> KeyResult:
+    """
+    Update an key_result.
+
+    param data: the update key result information to store
+    param key_result_id: the ID of the key result to update
+    return: the updated key result
+    """
+
+    key_result = await db_session.execute(select(KeyResult).where(KeyResult.id == key_result_id))
+    key_result = key_result.scalar_one_or_none()
+    if key_result is None:
+        raise NotFoundException("key result doesn't exist")
+
+    key_result.description = data.description
+    key_result.start_value = data.start_value
+    key_result.end_value = data.end_value
+
+    # commit updated key result to database
+    await db_session.commit()
+
+    return key_result
 
 
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
@@ -836,6 +867,7 @@ authenticated_router = Router(
         update_objective,
         get_key_results,
         create_key_result,
+        update_key_result,
         get_users,
         get_tasks_from_key_result,
         create_task_for_key_result,
