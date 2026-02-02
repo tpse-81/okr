@@ -113,10 +113,14 @@ async def login_handler(
     # TODO: verify 2FA code
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    return Response(
-        content=LoginResponse(jwt_token=jwt_token),
-        headers={"Authorization": jwt_token},
+    response = Response(content=LoginResponse(jwt_token=jwt_token),
+                        headers={"Authorization": jwt_token})
+    response.set_cookie(
+        key="token",
+        value=jwt_token,
+        max_age=604800, # 1 Week maybe change to 1 day later
     )
+    return response
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
