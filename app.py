@@ -439,6 +439,35 @@ async def create_objective(db_session: AsyncSession, data: Objective, project_id
     return SuccessResponse("successfully created objective")
 
 
+@patch("/objectives/{objective_id:str}", dto=ObjectiveWriteDTO, return_dto=ObjectiveReadDTO)
+async def update_objective(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Objective,
+    objective_id: str = Parameter(),
+) -> Objective:
+    """
+    Update an objective.
+
+    param data: the update objective information to store
+    param objective_id: the ID of the objective to update
+    return: the updated objective
+    """
+
+    objective = await db_session.execute(select(Objective).where(Objective.id == objective_id))
+    objective = objective.scalar_one_or_none()
+    if objective is None:
+        raise NotFoundException("objective doesn't exist")
+
+    objective.name = data.name
+    objective.description = data.description
+
+    # commit updated objective to database
+    await db_session.commit()
+
+    return objective
+
+
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
 async def get_objectives_for_project(
     db_session: AsyncSession,
@@ -804,6 +833,7 @@ authenticated_router = Router(
         update_project,
         get_objectives,
         create_objective,
+        update_objective,
         get_key_results,
         create_key_result,
         get_users,
