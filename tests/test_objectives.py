@@ -33,7 +33,9 @@ def test_objective_check(auth_client):
 
 
 def test_empty_project_check(auth_client):
-    response = auth_client.post("/projects/nonexistentid/objectives", json={"name": "name", "description": 5})
+    response = auth_client.post(
+        "/projects/nonexistentid/objectives", json={"name": "name", "description": 5}
+    )
     assert response.status_code == HTTP_400_BAD_REQUEST
 
     response = auth_client.get("/objectives")
@@ -46,7 +48,8 @@ def test_update_objective(auth_client):
     objective_id = create_objective(auth_client, project_id)
 
     response = auth_client.patch(
-        f"/objectives/{objective_id}", json={"name": "newname", "description": "newdescription"}
+        f"/objectives/{objective_id}",
+        json={"name": "newname", "description": "newdescription"},
     )
     assert response.status_code == HTTP_200_OK
 

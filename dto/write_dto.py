@@ -13,7 +13,9 @@ class ProjectWriteDTO(SQLAlchemyDTO[Project]):
     DTO used for serializing Project models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "creation_date", "is_archived", "archive_reason", "objectives"})
+    config = DTOConfig(
+        exclude={"id", "creation_date", "is_archived", "archive_reason", "objectives"}
+    )
 
 
 class ObjectiveWriteDTO(SQLAlchemyDTO[Objective]):
@@ -21,7 +23,9 @@ class ObjectiveWriteDTO(SQLAlchemyDTO[Objective]):
     DTO used for serializing Objective models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "is_archived", "parent_id", "children", "key_results"})
+    config = DTOConfig(
+        exclude={"id", "is_archived", "parent_id", "children", "key_results"}
+    )
 
 
 class KeyResultWriteDTO(SQLAlchemyDTO[KeyResult]):
@@ -45,4 +49,6 @@ class UserWriteDTO(SQLAlchemyDTO[User]):
     DTO used for serializing User models for write operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"id", "password_hash", "two_fa_secret", "projects", "tasks"})
+    config = DTOConfig(
+        exclude={"id", "password_hash", "two_fa_secret", "projects", "tasks"}
+    )
