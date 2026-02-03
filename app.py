@@ -966,7 +966,12 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     create_all=True,
 )
 
-cors_config = CORSConfig(allow_origins=["*"])
+cors_config = CORSConfig(
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    )
 # requires user to provide a valid auth token
 authenticated_router = Router(
     path="/",

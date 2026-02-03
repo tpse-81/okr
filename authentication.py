@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post, patch
 from litestar.connection import ASGIConnection
+from litestar.datastructures import Cookie
 from litestar.exceptions import (
     ClientException,
     NotAuthorizedException,
@@ -113,12 +114,14 @@ async def login_handler(
     # TODO: verify 2FA code
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    response = Response(content=LoginResponse(jwt_token=jwt_token),
-                        headers={"Authorization": jwt_token})
+    response = Response(content=LoginResponse(jwt_token=jwt_token))
     response.set_cookie(
         key="token",
         value=jwt_token,
         max_age=604800, # 1 Week maybe change to 1 day later
+        samesite="lax",
+        secure=True, #https benötigt, außer bei localhjost
+        httponly=False, #TODO später auf True ändern
     )
     return response
 
