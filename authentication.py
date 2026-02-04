@@ -5,7 +5,6 @@ from typing import Annotated, Any
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post, patch
 from litestar.connection import ASGIConnection
-from litestar.datastructures import Cookie
 from litestar.exceptions import (
     ClientException,
     NotAuthorizedException,
@@ -26,7 +25,6 @@ from models.user import User
 from responses import SuccessResponse
 from config import config
 
-API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
 
 
@@ -41,15 +39,16 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     """
     Middleware that checks if the user has provided a valid jwt auth key as the 'Authentication' HTTP header.
     """
-
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-        auth_header = connection.headers.get(API_KEY_HEADER)
-        if not auth_header:
+
+        token = connection.cookies.get("token")
+
+        if not token:
             raise NotAuthorizedException()
 
-        jwt_user = verify_jwt(auth_header)
+        jwt_user = verify_jwt(token)
         if not jwt_user:
             raise NotAuthorizedException()
 
@@ -67,7 +66,7 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
         if not user:
             raise NotAuthorizedException()
 
-        return AuthenticationResult(user=user, auth=auth_header)
+        return AuthenticationResult(user=user, auth=token)
 
 
 @dataclass
@@ -121,7 +120,7 @@ async def login_handler(
         max_age=604800, # 1 Week maybe change to 1 day later
         samesite="lax",
         secure=True, #https benötigt, außer bei localhjost
-        httponly=False, #TODO später auf True ändern
+        httponly=True, #True, damit man nicht durch javascript auf cookies zugreifen kann
     )
     return response
 
