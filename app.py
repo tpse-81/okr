@@ -164,12 +164,19 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     param objective_id: the ID of the objective to delete
     """
     objective = await db_session.get(Objective, objective_id)
-    if not await objective_exists(db_session, objective_id):
+    if objective is None:
         raise NotFoundException("objective not found")
 
-    # deleting an objective may force the children to become archived
-    # TODO: children should be linked to the parent of the objective that is getting deleted
-    # TODO: archiving status should be checked, after all children are linked
+    await db_session.refresh(objective, attribute_names=["children"])
+
+    children = objective.children
+
+    for child in children:
+        child.parent_id = objective.parent_id
+
+    # check if children need to be change archive status after changing/losing parent
+    await project_utils.archive_objective_including_children(db_session, children)
+    await project_utils.unarchive_objective_including_children(db_session, children)
 
     await db_session.delete(objective)
     await db_session.commit()
