@@ -16,7 +16,8 @@ from authentication import (
     hash_password,
     login_handler,
     change_password,
-    get_new_token, logout,
+    get_new_token,
+    logout,
 )
 from dto.write_dto import (
     KeyResultWriteDTO,
