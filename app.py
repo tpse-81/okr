@@ -17,6 +17,7 @@ from authentication import (
     login_handler,
     change_password,
     get_new_token,
+    logout,
 )
 from dto.write_dto import (
     KeyResultWriteDTO,
@@ -1017,6 +1018,7 @@ authenticated_router = Router(
         get_archived_projects,
         get_archived_objectives,
         change_project_deadline,
+        logout,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

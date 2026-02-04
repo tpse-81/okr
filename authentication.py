@@ -238,3 +238,14 @@ async def get_new_token(
     await db_session.commit()
 
     return SuccessResponse("new 2FA token generated")
+
+
+@post("/logout")
+async def logout() -> Response[None]:
+    response = Response(None)
+
+    response.delete_cookie(
+        key="token",
+    )
+
+    return response
