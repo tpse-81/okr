@@ -80,6 +80,40 @@ def test_key_result_with_fake_objective(auth_client):
     assert response.status_code == HTTP_404_NOT_FOUND
 
 
+def test_key_result_current_value(auth_client):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id, 0, 10)
+
+    response = auth_client.patch(
+        f"/key_results/{key_result_id}/current",
+        json={"current_value": 5},
+    )
+
+    assert response.status_code == HTTP_200_OK
+
+    body = response.json()
+    assert body["current_value"] == 5
+
+
+def test_key_result_current_value_out_of_bounds(auth_client):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id, 5, 10)
+
+    response = auth_client.patch(
+        f"/key_results/{key_result_id}/current",
+        json={"current_value": 4},
+    )
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+    response = auth_client.patch(
+        f"/key_results/{key_result_id}/current",
+        json={"current_value": 11},
+    )
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+
 def test_update_key_result(auth_client):
     project_id = create_project(auth_client)
     objective_id = create_objective(auth_client, project_id)
@@ -87,7 +121,12 @@ def test_update_key_result(auth_client):
 
     response = auth_client.patch(
         f"/key_results/{key_result_id}",
-        json={"description": "newdescription", "start_value": 8, "end_value": 11},
+        json={
+            "description": "newdescription",
+            "start_value": 8,
+            "end_value": 11,
+            "current_value": 9,
+        },
     )
     assert response.status_code == HTTP_200_OK
 
@@ -98,6 +137,7 @@ def test_update_key_result(auth_client):
     key_result = response.json()[-1]
     assert key_result["description"] == "newdescription"
     assert key_result["start_value"] == 8
+    assert key_result["current_value"] == 9
     assert key_result["end_value"] == 11
 
 
