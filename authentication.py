@@ -26,6 +26,7 @@ from responses import SuccessResponse
 from config import config
 
 JWT_ALGORITHM = "HS256"
+AUTH_COOKIE_NAME = "token"
 
 
 @dataclass
@@ -115,12 +116,12 @@ async def login_handler(
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
     response = Response(content=LoginResponse(jwt_token=jwt_token))
     response.set_cookie(
-        key="token",
+        key=AUTH_COOKIE_NAME,
         value=jwt_token,
         max_age=config.jwt_config.validy_duration_hours * (24 * 7),
         samesite="lax",
-        secure=True,  # https benötigt, außer bei localhjost
-        httponly=True,  # True, damit man nicht durch javascript auf cookies zugreifen kann
+        secure=True,  # https needed, except for localhost
+        httponly=True,  # True, so that cookies cant be read by javascript
     )
     return response
 

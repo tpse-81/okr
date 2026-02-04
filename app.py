@@ -967,7 +967,7 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
 )
 
 cors_config = CORSConfig(
-    allow_origins=["http://localhost:5173"],
+    allow_origins=config.cors_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
