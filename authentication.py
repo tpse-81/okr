@@ -25,6 +25,8 @@ from models.user import User
 from responses import SuccessResponse
 from config import config
 
+from dto.read_dto import UserReadDTO
+
 JWT_ALGORITHM = "HS256"
 AUTH_COOKIE_NAME = "token"
 
@@ -83,21 +85,15 @@ class LoginRequest:
 
 
 @dataclass
-class LoginResponse:
-    jwt_token: str
-
-
-@dataclass
 class ChangePasswordRequest:
     old_password: str
     new_password: str
 
 
-@post("/login")
+@post("/login", return_dto=UserReadDTO)
 async def login_handler(
-    data: Annotated[LoginRequest, Body(title="Login Request")],
-    db_session: AsyncSession,
-) -> Response[LoginResponse]:
+    data: Annotated[LoginRequest, Body(title="Login Request")], db_session: AsyncSession
+) -> Response[User]:
     """
     Login to the application.
 
@@ -115,13 +111,13 @@ async def login_handler(
         )
         user = user_query.scalar_one_or_none()
 
-    if not user or not verify_password(user.password_hash, data.password):
+    if user is None or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
 
     # TODO: verify 2FA code
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    response = Response(content=LoginResponse(jwt_token=jwt_token))
+    response = Response(content=user)
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
         value=jwt_token,
@@ -252,7 +248,7 @@ async def logout() -> Response[None]:
     response = Response(None)
 
     response.delete_cookie(
-        key="token",
+        key=AUTH_COOKIE_NAME,
     )
 
     return response

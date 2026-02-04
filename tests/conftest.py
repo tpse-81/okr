@@ -34,7 +34,7 @@ def test_user(client):
 
 
 @pytest.fixture(scope="module")
-def auth_token(client, test_user):
+def auth_token(client: TestClient, test_user):
     response = client.post(
         "/login",
         json={
@@ -44,7 +44,7 @@ def auth_token(client, test_user):
         },
     )
     assert response.status_code == HTTP_201_CREATED
-    return response.json()["jwt_token"]
+    return response.cookies.get("token")
 
 
 @pytest.fixture
