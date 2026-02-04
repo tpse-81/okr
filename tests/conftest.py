@@ -6,6 +6,8 @@ from litestar.status_codes import (
 from litestar.testing import TestClient
 from app import app
 
+import uuid
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -15,17 +17,18 @@ def client():
 
 @pytest.fixture(scope="module")
 def test_user(client):
+    name = f"test-user-{uuid.uuid4()}"
     response = client.post(
         "/users/create",
         json={
-            "name": "Test User",
+            "name": name,
             "email": "test@example.com",
             "password": "testpassword123",
         },
     )
     assert response.status_code == HTTP_201_CREATED
     return {
-        "email": "test@example.com",
+        "name": name,
         "password": "testpassword123",
     }
 
@@ -35,7 +38,7 @@ def auth_token(client, test_user):
     response = client.post(
         "/login",
         json={
-            "email": test_user["email"],
+            "name": test_user["name"],
             "password": test_user["password"],
             "two_fa_code": None,
         },
