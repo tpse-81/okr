@@ -117,7 +117,7 @@ async def login_handler(
     response.set_cookie(
         key="token",
         value=jwt_token,
-        max_age=604800,  # 1 Week maybe change to 1 day later
+        max_age=config.jwt_config.validy_duration_hours * 24 * 7),
         samesite="lax",
         secure=True,  # https benötigt, außer bei localhjost
         httponly=True,  # True, damit man nicht durch javascript auf cookies zugreifen kann
