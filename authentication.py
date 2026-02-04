@@ -76,7 +76,7 @@ class LoginRequest:
     Parameters sent by the user in order to login.
     """
 
-    email: str
+    name: str
     password: str
     # TODO: 2fa is not yet implemented, so the code is ignored
     two_fa_code: str | None
@@ -105,8 +105,15 @@ async def login_handler(
 
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(select(User).where(User.email == data.email))
+    user_query = await db_session.execute(select(User).where(User.name == data.name))
     user = user_query.scalar_one_or_none()
+
+    # fallback to email
+    if not user:
+        user_query = await db_session.execute(
+            select(User).where(User.email == data.name)
+        )
+        user = user_query.scalar_one_or_none()
 
     if not user or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
