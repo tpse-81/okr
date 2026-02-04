@@ -3,7 +3,7 @@ import secrets
 from typing import Annotated, Any
 
 from argon2.exceptions import VerifyMismatchError
-from litestar import Response, post, patch
+from litestar import Response, post, patch, get
 from litestar.connection import ASGIConnection
 from litestar.exceptions import (
     ClientException,
@@ -238,3 +238,13 @@ async def get_new_token(
     await db_session.commit()
 
     return SuccessResponse("new 2FA token generated")
+
+@post("/logout")
+async def logout() -> Response[None]:
+    response = Response(None)
+
+    response.delete_cookie(
+        key="token",
+    )
+
+    return response
