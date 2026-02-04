@@ -117,6 +117,20 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
     return list(await db_session.scalars(select(Project)))
 
 
+@get("/projects/{project_id:str}", return_dto=ProjectReadDTO)
+async def get_project(db_session: AsyncSession, project_id: str) -> Project:
+    """
+    Get the project with the given ID.
+
+    param project_id: the ID of the project to return
+    """
+    project = await db_session.get(Project, project_id)
+    if project is None:
+        raise NotFoundException("project not found")
+
+    return project
+
+
 @get("/key_results", return_dto=KeyResultReadDTO)
 async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     """
@@ -125,6 +139,20 @@ async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     return: a JSON list of key results
     """
     return list(await db_session.scalars(select(KeyResult)))
+
+
+@get("/key_results/{key_result_id:str}", return_dto=KeyResultReadDTO)
+async def get_key_result(db_session: AsyncSession, key_result_id: str) -> KeyResult:
+    """
+    Get the key result with the given ID.
+
+    param key_result_id: the ID of the key_result to return
+    """
+    key_result = await db_session.get(KeyResult, key_result_id)
+    if key_result is None:
+        raise NotFoundException("key_result not found")
+
+    return key_result
 
 
 @delete("/key_results/{key_result_id:str}")
@@ -140,6 +168,20 @@ async def delete_key_result(db_session: AsyncSession, key_result_id: str) -> Non
 
     await db_session.delete(key_result)
     await db_session.commit()
+
+
+@get("/objectives/{objective_id:str}", return_dto=ObjectiveReadDTO)
+async def get_objective(db_session: AsyncSession, objective_id: str) -> Objective:
+    """
+    Get the objective with the given ID.
+
+    param objective_id: the ID of the objective to return
+    """
+    objective = await db_session.get(Objective, objective_id)
+    if objective is None:
+        raise NotFoundException("objective not found")
+
+    return objective
 
 
 @get("/objectives", return_dto=ObjectiveReadDTO)
@@ -194,6 +236,20 @@ async def get_tasks(db_session: AsyncSession) -> list[Task]:
 
     result = await db_session.scalars(select(Task))
     return list(result)
+
+
+@get("/tasks/{task_id:str}", return_dto=TaskReadDTO)
+async def get_task(db_session: AsyncSession, task_id: str) -> Task:
+    """
+    Get the task with the given ID.
+
+    param task_id: the ID of the task to return
+    """
+    task = await db_session.get(Task, task_id)
+    if task is None:
+        raise NotFoundException("task not found")
+
+    return task
 
 
 @get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
@@ -985,16 +1041,20 @@ authenticated_router = Router(
     path="/",
     route_handlers=[
         get_projects,
+        get_project,
         create_project,
         update_project,
         get_objectives,
+        get_objective,
         create_objective,
         update_objective,
         get_key_results,
+        get_key_result,
         create_key_result,
         update_key_result,
         get_users,
         get_tasks,
+        get_task,
         get_tasks_from_key_result,
         create_task_for_key_result,
         update_task,

@@ -27,9 +27,13 @@ def test_objective_check(auth_client):
 
     response = auth_client.get("/objectives")
     assert response.status_code == HTTP_200_OK
-    t = response.json()[0]
-    assert t["description"] == "description"
-    assert t["name"] == "name"
+    objective = response.json()[0]
+    assert objective["description"] == "description"
+    assert objective["name"] == "name"
+
+    response = auth_client.get(f"/objectives/{objective['id']}")
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == objective
 
 
 def test_empty_project_check(auth_client):
