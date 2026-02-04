@@ -32,11 +32,15 @@ def test_key_result_check(auth_client: TestClient[Litestar]):
 
     response = auth_client.get("/key_results")
     assert response.status_code == HTTP_200_OK
-    t = response.json()[0]
-    assert t["description"] == "description"
-    assert t["start_value"] == 5
-    assert t["end_value"] == 5
+    key_result = response.json()[0]
+    assert key_result["description"] == "description"
+    assert key_result["start_value"] == 5
+    assert key_result["end_value"] == 5
     assert len(response.json()) == 1
+
+    response = auth_client.get(f"/key_results/{key_result['id']}")
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == key_result
 
 
 def test_empty_key_result_check(auth_client):

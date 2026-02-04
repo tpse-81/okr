@@ -32,6 +32,10 @@ def test_project_check(auth_client):
     assert project["name"] == "Testprojekt"
     assert project["deadline"] == "2025-08-13T10:05:00Z"
 
+    response = auth_client.get(f"/projects/{project['id']}")
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == project
+
     # check if the automatically set creation date is set to approximately
     # the current time
     parsed_date = datetime.fromisoformat(project["creation_date"])

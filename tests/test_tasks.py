@@ -35,9 +35,13 @@ def test_task(auth_client: TestClient[Litestar]):
 
     response = auth_client.get("/tasks")
     assert response.status_code == HTTP_200_OK
-    t = response.json()[0]
-    assert t["description"] == "description"
     assert len(response.json()) == 1
+    task = response.json()[0]
+    assert task["description"] == "description"
+
+    response = auth_client.get(f"/tasks/{task['id']}")
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == task
 
 
 def test_empty_task(auth_client):
