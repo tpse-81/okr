@@ -46,5 +46,5 @@ def auth_token(client, test_user):
 
 @pytest.fixture
 def auth_client(client, auth_token) -> TestClient[Litestar]:
-    client.headers.update({"Authorization": auth_token})
+    client.cookies.set("token", auth_token)
     return client

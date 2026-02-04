@@ -25,8 +25,8 @@ from models.user import User
 from responses import SuccessResponse
 from config import config
 
-API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
+AUTH_COOKIE_NAME = "token"
 
 
 @dataclass
@@ -44,11 +44,12 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-        auth_header = connection.headers.get(API_KEY_HEADER)
-        if not auth_header:
+        token = connection.cookies.get("token")
+
+        if not token:
             raise NotAuthorizedException()
 
-        jwt_user = verify_jwt(auth_header)
+        jwt_user = verify_jwt(token)
         if not jwt_user:
             raise NotAuthorizedException()
 
@@ -66,7 +67,7 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
         if not user:
             raise NotAuthorizedException()
 
-        return AuthenticationResult(user=user, auth=auth_header)
+        return AuthenticationResult(user=user, auth=token)
 
 
 @dataclass
@@ -113,10 +114,16 @@ async def login_handler(
     # TODO: verify 2FA code
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    return Response(
-        content=LoginResponse(jwt_token=jwt_token),
-        headers={"Authorization": jwt_token},
+    response = Response(content=LoginResponse(jwt_token=jwt_token))
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=jwt_token,
+        max_age=config.jwt_config.validy_duration_hours * (24 * 7),
+        samesite="lax",
+        secure=True,  # https needed, except for localhost
+        httponly=True,  # True, so that cookies cant be read by javascript
     )
+    return response
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
