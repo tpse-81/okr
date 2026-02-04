@@ -37,13 +37,13 @@ def create_objective(client, project_id, name="name", description="description")
     return objective.json()[-1].get("id")
 
 
-def create_key_result(client, objective_id):
+def create_key_result(client, objective_id, start_value=15, end_value=10):
     key_result = client.post(
         f"/objectives/{objective_id}/key_results",
         json={
             "description": "description",
-            "start_value": 15,
-            "end_value": 10,
+            "start_value": start_value,
+            "end_value": end_value,
         },
     )
     assert key_result.status_code == HTTP_201_CREATED

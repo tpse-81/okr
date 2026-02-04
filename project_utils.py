@@ -148,3 +148,10 @@ async def unarchive_objective_including_children(
         # after the objective gets unarchived, we have to look at its children (and recursively all children of them as well)
         for child in objective.children:
             queue.append(child)
+
+
+def check_value_within_bounds(value, a, b):
+    low = min(a, b)
+    high = max(a, b)
+
+    return low <= value <= high

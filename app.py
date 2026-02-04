@@ -24,6 +24,8 @@ from dto.write_dto import (
     ObjectiveWriteDTO,
     ProjectWriteDTO,
     TaskWriteDTO,
+    KeyResultWriteUpdateDTO,
+    KeyResultCurrentValueUpdateDTO,
 )
 from models.project import Project, ArchiveReason
 from models.objective import Objective
@@ -60,6 +62,7 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 import uuid
 
 from config import config
+from project_utils import check_value_within_bounds
 from responses import SuccessResponse, UserRoleResponse
 
 
@@ -555,6 +558,7 @@ async def create_key_result(
         id=key_result_id,
         objective_id=objective_id,
         description=data.description,
+        current_value=data.start_value,
         start_value=data.start_value,
         end_value=data.end_value,
     )
@@ -568,7 +572,7 @@ async def create_key_result(
 
 @patch(
     "/key_results/{key_result_id:str}",
-    dto=KeyResultWriteDTO,
+    dto=KeyResultWriteUpdateDTO,
     return_dto=KeyResultReadDTO,
 )
 async def update_key_result(
@@ -592,13 +596,56 @@ async def update_key_result(
     if key_result is None:
         raise NotFoundException("key result doesn't exist")
 
+    if not (
+        check_value_within_bounds(data.current_value, data.start_value, data.end_value)
+    ):
+        raise ClientException("current value is out of bounds")
+
     key_result.description = data.description
     key_result.start_value = data.start_value
+    key_result.current_value = data.current_value
     key_result.end_value = data.end_value
 
     # commit updated key result to database
     await db_session.commit()
 
+    return key_result
+
+
+@patch(
+    "/key_results/{key_result_id:str}/current",
+    dto=KeyResultCurrentValueUpdateDTO,
+    return_dto=KeyResultReadDTO,
+)
+async def update_key_result_current_value(
+    db_session: AsyncSession,
+    data: KeyResult,
+    key_result_id: str = Parameter(),
+) -> KeyResult:
+    """
+    Update the current_value of a key_result.
+
+    param data: the new current value to store
+    param key_result_id: the ID of the key result to update
+    return: the key result with the updated current value
+    """
+    key_result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = key_result.scalar_one_or_none()
+    if not key_result:
+        raise NotFoundException("key result doesn't exist")
+
+    if not (
+        check_value_within_bounds(
+            data.current_value, key_result.start_value, key_result.end_value
+        )
+    ):
+        raise ClientException("current value is out of bounds")
+
+    key_result.current_value = data.current_value
+    await db_session.commit()
+    await db_session.refresh(key_result)
     return key_result
 
 
@@ -1067,6 +1114,7 @@ authenticated_router = Router(
         get_key_result,
         create_key_result,
         update_key_result,
+        update_key_result_current_value,
         get_users,
         get_tasks,
         get_task,
