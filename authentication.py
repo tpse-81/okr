@@ -39,10 +39,10 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     """
     Middleware that checks if the user has provided a valid jwt auth key as the 'Authentication' HTTP header.
     """
+
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-
         token = connection.cookies.get("token")
 
         if not token:
@@ -117,10 +117,10 @@ async def login_handler(
     response.set_cookie(
         key="token",
         value=jwt_token,
-        max_age=604800, # 1 Week maybe change to 1 day later
+        max_age=604800,  # 1 Week maybe change to 1 day later
         samesite="lax",
-        secure=True, #https benötigt, außer bei localhjost
-        httponly=True, #True, damit man nicht durch javascript auf cookies zugreifen kann
+        secure=True,  # https benötigt, außer bei localhjost
+        httponly=True,  # True, damit man nicht durch javascript auf cookies zugreifen kann
     )
     return response
 

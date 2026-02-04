@@ -971,7 +971,7 @@ cors_config = CORSConfig(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    )
+)
 # requires user to provide a valid auth token
 authenticated_router = Router(
     path="/",
