@@ -22,7 +22,7 @@ class Objective(base.UUIDBase):
 
     # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("objectives.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("objectives.id"), nullable=True
     )
 
     # 1-> N relationship with Objective children
