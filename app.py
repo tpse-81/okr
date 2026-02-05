@@ -85,12 +85,16 @@ async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> boo
     key_result = result.scalar_one_or_none()
     return key_result is not None
 
-async def get_project_role(db_session: AsyncSession, *, project_id: str, user_id: str) -> UserRole | None:
+
+async def get_project_role(
+    db_session: AsyncSession, *, project_id: str, user_id: str
+) -> UserRole | None:
     stmt = select(UserProject.role).where(
         UserProject.project_id == project_id,
         UserProject.user_id == user_id,
     )
     return await db_session.scalar(stmt)
+
 
 @get("/hello")
 async def hello_world(
@@ -357,7 +361,7 @@ async def update_task(
 @post("/projects", dto=ProjectWriteDTO, return_dto=None)
 async def create_project(
     db_session: AsyncSession,
-    request: Request,  
+    request: Request,
     # all project parameters are mandatory, so enforce they're not unset
     data: Project,
 ) -> SuccessResponse:
@@ -708,7 +712,7 @@ async def get_key_results_for_objective(
 @get("/projects/{project_id:str}/users", return_dto=UserReadDTO)
 async def get_users_for_project(
     db_session: AsyncSession,
-    request: Request, 
+    request: Request,
     project_id: str = Parameter(),
 ) -> list[User]:
     """
@@ -720,7 +724,12 @@ async def get_users_for_project(
 
     # retrieve all users related to the project
     users = await db_session.scalars(
-        select(User).join(UserProject).where(UserProject.project_id == project_id, User.id != request.user.id,)
+        select(User)
+        .join(UserProject)
+        .where(
+            UserProject.project_id == project_id,
+            User.id != request.user.id,
+        )
     )
 
     return list(users)
@@ -752,7 +761,7 @@ async def add_user_to_project(
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
-    
+
     # permissions:
     # - admin can add anyone with any project role
     # - leader can add members and leaders in projects they lead
@@ -767,9 +776,7 @@ async def add_user_to_project(
             raise ClientException(status_code=403, detail="Forbidden")
 
         if role not in (UserRole.MEMBER, UserRole.LEADER):
-            raise ClientException(
-                status_code=403, detail="Forbidden role"
-            )
+            raise ClientException(status_code=403, detail="Forbidden role")
 
     # check if user already in project
     already_in_project = await db_session.scalar(
@@ -872,7 +879,7 @@ async def change_user_role(
 
     if not user_project:
         raise NotFoundException("User is not assigned to this project")
-    
+
     # permissions:
     # admin: everything
     # teamlead: only member -> teamlead (no demotions)
@@ -894,7 +901,7 @@ async def change_user_role(
 
         # allow no-op: leader -> leader
         if user_project.role == UserRole.LEADER:
-                return SuccessResponse("Role successfully updated")
+            return SuccessResponse("Role successfully updated")
 
     # change the role
     user_project.role = role
