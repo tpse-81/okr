@@ -708,6 +708,7 @@ async def get_key_results_for_objective(
 @get("/projects/{project_id:str}/users", return_dto=UserReadDTO)
 async def get_users_for_project(
     db_session: AsyncSession,
+    request: Request, 
     project_id: str = Parameter(),
 ) -> list[User]:
     """
@@ -719,7 +720,7 @@ async def get_users_for_project(
 
     # retrieve all users related to the project
     users = await db_session.scalars(
-        select(User).join(UserProject).where(UserProject.project_id == project_id)
+        select(User).join(UserProject).where(UserProject.project_id == project_id, User.id != request.user.id,)
     )
 
     return list(users)
