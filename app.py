@@ -17,6 +17,7 @@ from authentication import (
     login_handler,
     change_password,
     get_new_token,
+    logout,
 )
 from dto.write_dto import (
     KeyResultWriteDTO,
@@ -24,7 +25,7 @@ from dto.write_dto import (
     ProjectWriteDTO,
     TaskWriteDTO,
 )
-from models.project import Project
+from models.project import Project, ArchiveReason
 from models.objective import Objective
 from models.key_result import KeyResult
 from models.user import User
@@ -39,6 +40,9 @@ from dto.read_dto import (
     TaskReadDTO,
     UserReadDTO,
 )
+
+import project_utils
+from helpers import is_valid_email
 
 from sqlalchemy import select, exists, and_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -73,6 +77,14 @@ async def objective_exists(db_session: AsyncSession, objective_id: str) -> bool:
     return objective is not None
 
 
+async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> bool:
+    result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = result.scalar_one_or_none()
+    return key_result is not None
+
+
 @get("/hello")
 async def hello_world(
     db_session: AsyncSession, db_engine: AsyncEngine
@@ -105,6 +117,20 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
     return list(await db_session.scalars(select(Project)))
 
 
+@get("/projects/{project_id:str}", return_dto=ProjectReadDTO)
+async def get_project(db_session: AsyncSession, project_id: str) -> Project:
+    """
+    Get the project with the given ID.
+
+    param project_id: the ID of the project to return
+    """
+    project = await db_session.get(Project, project_id)
+    if project is None:
+        raise NotFoundException("project not found")
+
+    return project
+
+
 @get("/key_results", return_dto=KeyResultReadDTO)
 async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     """
@@ -113,6 +139,20 @@ async def get_key_results(db_session: AsyncSession) -> list[KeyResult]:
     return: a JSON list of key results
     """
     return list(await db_session.scalars(select(KeyResult)))
+
+
+@get("/key_results/{key_result_id:str}", return_dto=KeyResultReadDTO)
+async def get_key_result(db_session: AsyncSession, key_result_id: str) -> KeyResult:
+    """
+    Get the key result with the given ID.
+
+    param key_result_id: the ID of the key_result to return
+    """
+    key_result = await db_session.get(KeyResult, key_result_id)
+    if key_result is None:
+        raise NotFoundException("key_result not found")
+
+    return key_result
 
 
 @delete("/key_results/{key_result_id:str}")
@@ -128,6 +168,20 @@ async def delete_key_result(db_session: AsyncSession, key_result_id: str) -> Non
 
     await db_session.delete(key_result)
     await db_session.commit()
+
+
+@get("/objectives/{objective_id:str}", return_dto=ObjectiveReadDTO)
+async def get_objective(db_session: AsyncSession, objective_id: str) -> Objective:
+    """
+    Get the objective with the given ID.
+
+    param objective_id: the ID of the objective to return
+    """
+    objective = await db_session.get(Objective, objective_id)
+    if objective is None:
+        raise NotFoundException("objective not found")
+
+    return objective
 
 
 @get("/objectives", return_dto=ObjectiveReadDTO)
@@ -153,11 +207,49 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     param objective_id: the ID of the objective to delete
     """
     objective = await db_session.get(Objective, objective_id)
-    if not await objective_exists(db_session, objective_id):
+    if objective is None:
         raise NotFoundException("objective not found")
+
+    await db_session.refresh(objective, attribute_names=["children"])
+
+    children = objective.children
+
+    for child in children:
+        child.parent_id = objective.parent_id
+
+    # check if children need to be change archive status after changing/losing parent
+    await project_utils.archive_objective_including_children(db_session, children)
+    await project_utils.unarchive_objective_including_children(db_session, children)
 
     await db_session.delete(objective)
     await db_session.commit()
+
+
+@get("/tasks", return_dto=TaskReadDTO)
+async def get_tasks(db_session: AsyncSession) -> list[Task]:
+    """
+    param key_result_id: the UUID of the key result whose tasks should be returned
+
+    Gets the list of task for a given key result
+
+    """
+
+    result = await db_session.scalars(select(Task))
+    return list(result)
+
+
+@get("/tasks/{task_id:str}", return_dto=TaskReadDTO)
+async def get_task(db_session: AsyncSession, task_id: str) -> Task:
+    """
+    Get the task with the given ID.
+
+    param task_id: the ID of the task to return
+    """
+    task = await db_session.get(Task, task_id)
+    if task is None:
+        raise NotFoundException("task not found")
+
+    return task
 
 
 @get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
@@ -206,6 +298,9 @@ async def create_task_for_key_result(
     param task_state: the state of the task can be ONLY one of the following: open", "planned", "in_progress", "done" or "cancelled"
     """
 
+    if not await key_result_exists(db_session, key_result_id):
+        raise NotFoundException("key result not found")
+
     # randomly generate a task id
     task_id = uuid.uuid4()
 
@@ -221,6 +316,35 @@ async def create_task_for_key_result(
     await db_session.commit()
 
     return SuccessResponse("successfully created task")
+
+
+@patch("/tasks/{task_id:str}", dto=TaskWriteDTO, return_dto=TaskReadDTO)
+async def update_task(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Task,
+    task_id: str = Parameter(),
+) -> Task:
+    """
+    Update an existing task.
+
+    param data: the updated task information to store
+    param task_id: the ID of the task
+    return: the updated task
+    """
+
+    task = await db_session.execute(select(Task).where(Task.id == task_id))
+    task = task.scalar_one_or_none()
+    if task is None:
+        raise NotFoundException("task doesn't exist")
+
+    task.description = data.description
+    task.task_state = data.task_state
+
+    # commit updated task to database
+    await db_session.commit()
+
+    return task
 
 
 @post("/projects", dto=ProjectWriteDTO, return_dto=None)
@@ -254,6 +378,37 @@ async def create_project(
     return SuccessResponse("successfully created project")
 
 
+@patch("/projects/{project_id:str}", dto=ProjectWriteDTO, return_dto=ProjectReadDTO)
+async def update_project(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Project,
+    project_id: str = Parameter(),
+) -> Project:
+    """
+    Update an existing project.
+
+    param data: the updated project information to store
+    param project_id: the ID of the project
+    return: the updated project
+    """
+
+    project = await db_session.execute(select(Project).where(Project.id == project_id))
+    project = project.scalar_one_or_none()
+    if project is None:
+        raise NotFoundException("project doesn't exist")
+
+    project.name = data.name
+    project.deadline = data.deadline
+    project.done = data.done
+    project.icon = data.icon
+
+    # commit updated project to database
+    await db_session.commit()
+
+    return project
+
+
 @delete("/projects/{project_id:str}")
 async def delete_project(
     db_session: AsyncSession,
@@ -266,14 +421,17 @@ async def delete_project(
     param project_id: the ID of the project to delete
     """
 
-    if not await project_exists(db_session, project_id):
+    project = await db_session.get(Project, project_id)
+    if not project:
         raise NotFoundException("Project not found")
 
-    objectives_for_project = await db_session.scalars(
-        select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
+    # make the project archived for the archive_check logic
+    project.is_archived = True
+
+    objectives_for_project = await project_utils.get_objectives_for_project(
+        db_session, project_id
     )
+    remaining_objectives: list[Objective] = []
 
     for objective in objectives_for_project:
         has_other_project = await db_session.scalar(
@@ -288,6 +446,15 @@ async def delete_project(
         )
         if not has_other_project:
             await db_session.delete(objective)
+        else:
+            remaining_objectives.append(objective)
+
+    await db_session.flush()
+
+    # deleting a project may force the remaining objectives to become archived
+    await project_utils.archive_objective_including_children(
+        db_session, remaining_objectives
+    )
 
     await db_session.execute(sa_delete(Project).where(Project.id == project_id))
     await db_session.commit()
@@ -321,6 +488,12 @@ async def create_user(
     param data: the user data to create a new user from
     return: whether the user was successfully created
     """
+    if is_valid_email(data.name):
+        raise ClientException("usernames must not be an e-mail addresses!")
+
+    if not is_valid_email(data.email):
+        raise ClientException("invalid email address")
+
     # randomly generate a user_id
     user_id = uuid.uuid4()
     password_hash = hash_password(data.password)
@@ -340,11 +513,14 @@ async def create_user(
     return SuccessResponse("successfully created user")
 
 
-@post("/key_results", dto=KeyResultWriteDTO, return_dto=None)
+@post(
+    "/objectives/{objective_id:str}/key_results", dto=KeyResultWriteDTO, return_dto=None
+)
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
     data: KeyResult,
+    objective_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Create a new key result.
@@ -352,17 +528,17 @@ async def create_key_result(
     param data: the key result to create
     return: a JSON object containing a success message
     """
-    if not data.objective_id:
+    if not objective_id:
         raise ClientException("invalid objective id")
 
-    if not await objective_exists(db_session, data.objective_id):
+    if not await objective_exists(db_session, objective_id):
         raise NotFoundException("Objective doesn't exist")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
     key_result = KeyResult(
         id=key_result_id,
-        objective_id=data.objective_id,
+        objective_id=objective_id,
         description=data.description,
         start_value=data.start_value,
         end_value=data.end_value,
@@ -373,6 +549,42 @@ async def create_key_result(
     await db_session.commit()
 
     return SuccessResponse("successfully created key result")
+
+
+@patch(
+    "/key_results/{key_result_id:str}",
+    dto=KeyResultWriteDTO,
+    return_dto=KeyResultReadDTO,
+)
+async def update_key_result(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: KeyResult,
+    key_result_id: str = Parameter(),
+) -> KeyResult:
+    """
+    Update an key_result.
+
+    param data: the update key result information to store
+    param key_result_id: the ID of the key result to update
+    return: the updated key result
+    """
+
+    key_result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = key_result.scalar_one_or_none()
+    if key_result is None:
+        raise NotFoundException("key result doesn't exist")
+
+    key_result.description = data.description
+    key_result.start_value = data.start_value
+    key_result.end_value = data.end_value
+
+    # commit updated key result to database
+    await db_session.commit()
+
+    return key_result
 
 
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
@@ -406,6 +618,39 @@ async def create_objective(
     return SuccessResponse("successfully created objective")
 
 
+@patch(
+    "/objectives/{objective_id:str}", dto=ObjectiveWriteDTO, return_dto=ObjectiveReadDTO
+)
+async def update_objective(
+    db_session: AsyncSession,
+    # all project parameters are mandatory, so enforce they're not unset
+    data: Objective,
+    objective_id: str = Parameter(),
+) -> Objective:
+    """
+    Update an objective.
+
+    param data: the update objective information to store
+    param objective_id: the ID of the objective to update
+    return: the updated objective
+    """
+
+    objective = await db_session.execute(
+        select(Objective).where(Objective.id == objective_id)
+    )
+    objective = objective.scalar_one_or_none()
+    if objective is None:
+        raise NotFoundException("objective doesn't exist")
+
+    objective.name = data.name
+    objective.description = data.description
+
+    # commit updated objective to database
+    await db_session.commit()
+
+    return objective
+
+
 @get("/projects/{project_id:str}/objectives", return_dto=ObjectiveReadDTO)
 async def get_objectives_for_project(
     db_session: AsyncSession,
@@ -418,18 +663,7 @@ async def get_objectives_for_project(
     return: a JSON list of objectives related to the given project
     """
 
-    stmt = (
-        select(Objective)
-        .join(project_objective)
-        .where(project_objective.c.project_id == project_id)
-        .options(
-            selectinload(Objective.children)
-        )  # eagerly load all Objective children
-    )
-    result = await db_session.execute(stmt)
-    objectives = result.scalars().all()  # list of all Objectives
-
-    return list(objectives)
+    return await project_utils.get_objectives_for_project(db_session, project_id)
 
 
 @get("/objectives/{objective_id:str}/key_results", return_dto=KeyResultReadDTO)
@@ -524,7 +758,7 @@ async def add_user_to_project(
     )
 
 
-@post("projects/{project_id:str}/objectives/{objective_id:str}")
+@post("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
@@ -550,6 +784,12 @@ async def add_objective_to_project(
     # link the objective to the project (if already linked nothing happens)
     if objective not in project.objectives:
         project.objectives.append(objective)
+
+    # if the project was archived, the objective archive status won't be changed, so only this one check is necessary
+    if not project.is_archived:
+        await project_utils.unarchive_objective_including_children(
+            db_session, [objective]
+        )
 
     await db_session.commit()
 
@@ -665,9 +905,115 @@ async def add_objective_to_objective(
 
     if child.parent_id != parent_objective_id:
         child.parent_id = parent_objective_id
-        await db_session.commit()
+        await db_session.flush()
+
+    if not parent.is_archived:
+        await project_utils.unarchive_objective_including_children(db_session, [child])
+    else:
+        await project_utils.archive_objective_including_children(db_session, [child])
+
+    await db_session.commit()
 
     return SuccessResponse("Objective linked successfully")
+
+
+@patch("projects/{project_id:str}/archive")
+async def archive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    archive_reason: ArchiveReason = Parameter(),
+) -> SuccessResponse:
+    """
+    Archives a project
+
+    param project_id: the ID of the project
+    param archive_reason: the reason for archiving
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    project.is_archived = True
+    project.archive_reason = archive_reason
+
+    # check if associated objectives and their children need to be archived
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+    await project_utils.archive_objective_including_children(db_session, objectives)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"Project {project.name} is archived")
+
+
+@patch("projects/{project_id:str}/unarchive")
+async def unarchive_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    new_deadline: datetime = Parameter(),
+) -> SuccessResponse:
+    """
+    Unarchives a project
+
+    param project_id: the ID of the project
+    param archive_reason: the reason for archiving
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    project.is_archived = False
+    project.archive_reason = None
+    await project_utils.change_project_deadline(db_session, project_id, new_deadline)
+
+    # unarchive all linked objectives and their children
+    objectives = await project_utils.get_objectives_for_project(db_session, project_id)
+    await project_utils.unarchive_objective_including_children(db_session, objectives)
+
+    await db_session.commit()
+
+    return SuccessResponse(message=f"Project {project.name} is unarchived")
+
+
+@get("/projects/archived", return_dto=ProjectReadDTO)
+async def get_archived_projects(db_session: AsyncSession) -> list[Project]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Project).where(Project.is_archived.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@get("/objectives/archived", return_dto=ObjectiveReadDTO)
+async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
+    """
+    Returns a list of all archived projects
+    """
+    stmt = select(Objective).where(Objective.is_archived.is_(True))
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@patch("/projects/{project_id:str}/deadline/extend")
+async def change_project_deadline(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    new_deadline: datetime = Parameter(),
+) -> SuccessResponse:
+    """
+    Extends the project deadline
+
+    param project_id: the ID of the project
+    param new_deadline: the new deadline of the project
+    """
+
+    return await project_utils.change_project_deadline(
+        db_session, project_id, new_deadline
+    )
 
 
 # during test execution, data is written into memory and not
@@ -684,20 +1030,34 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     create_all=True,
 )
 
-cors_config = CORSConfig(allow_origins=["*"])
+cors_config = CORSConfig(
+    allow_origins=config.cors_allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # requires user to provide a valid auth token
 authenticated_router = Router(
     path="/",
     route_handlers=[
         get_projects,
+        get_project,
         create_project,
+        update_project,
         get_objectives,
+        get_objective,
         create_objective,
+        update_objective,
         get_key_results,
+        get_key_result,
         create_key_result,
+        update_key_result,
         get_users,
+        get_tasks,
+        get_task,
         get_tasks_from_key_result,
         create_task_for_key_result,
+        update_task,
         get_objectives_for_project,
         get_key_results_for_objective,
         get_users_for_project,
@@ -712,6 +1072,13 @@ authenticated_router = Router(
         delete_objective,
         delete_key_result,
         delete_task,
+        get_new_token,
+        archive_project,
+        unarchive_project,
+        get_archived_projects,
+        get_archived_objectives,
+        change_project_deadline,
+        logout,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

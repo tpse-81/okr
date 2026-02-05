@@ -18,10 +18,11 @@ class Objective(base.UUIDBase):
     # Table columns/attributes
     name: Mapped[str]
     description: Mapped[str]
+    is_archived: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # foreign key to parent Objective
     parent_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("objectives.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("objectives.id"), nullable=True
     )
 
     # 1-> N relationship with Objective children

@@ -25,8 +25,8 @@ from models.user import User
 from responses import SuccessResponse
 from config import config
 
-API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
+AUTH_COOKIE_NAME = "token"
 
 
 @dataclass
@@ -44,11 +44,12 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-        auth_header = connection.headers.get(API_KEY_HEADER)
-        if not auth_header:
+        token = connection.cookies.get("token")
+
+        if not token:
             raise NotAuthorizedException()
 
-        jwt_user = verify_jwt(auth_header)
+        jwt_user = verify_jwt(token)
         if not jwt_user:
             raise NotAuthorizedException()
 
@@ -66,7 +67,7 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
         if not user:
             raise NotAuthorizedException()
 
-        return AuthenticationResult(user=user, auth=auth_header)
+        return AuthenticationResult(user=user, auth=token)
 
 
 @dataclass
@@ -75,7 +76,7 @@ class LoginRequest:
     Parameters sent by the user in order to login.
     """
 
-    email: str
+    name: str
     password: str
     # TODO: 2fa is not yet implemented, so the code is ignored
     two_fa_code: str | None
@@ -104,8 +105,15 @@ async def login_handler(
 
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(select(User).where(User.email == data.email))
+    user_query = await db_session.execute(select(User).where(User.name == data.name))
     user = user_query.scalar_one_or_none()
+
+    # fallback to email
+    if not user:
+        user_query = await db_session.execute(
+            select(User).where(User.email == data.name)
+        )
+        user = user_query.scalar_one_or_none()
 
     if not user or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
@@ -113,10 +121,16 @@ async def login_handler(
     # TODO: verify 2FA code
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    return Response(
-        content=LoginResponse(jwt_token=jwt_token),
-        headers={"Authorization": jwt_token},
+    response = Response(content=LoginResponse(jwt_token=jwt_token))
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=jwt_token,
+        max_age=config.jwt_config.validy_duration_hours * (24 * 7),
+        samesite="lax",
+        secure=True,  # https needed, except for localhost
+        httponly=True,  # True, so that cookies cant be read by javascript
     )
+    return response
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
@@ -231,3 +245,14 @@ async def get_new_token(
     await db_session.commit()
 
     return SuccessResponse("new 2FA token generated")
+
+
+@post("/logout")
+async def logout() -> Response[None]:
+    response = Response(None)
+
+    response.delete_cookie(
+        key="token",
+    )
+
+    return response
