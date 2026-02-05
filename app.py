@@ -8,7 +8,7 @@ from litestar.params import Parameter
 from litestar.router import Router
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.config.cors import CORSConfig
-from litestar.connection import ASGIConnection
+from litestar.connection import Request
 
 # Importing the database models
 from authentication import (
@@ -716,7 +716,7 @@ async def get_users_for_project(
 @post("/projects/{project_id:str}/users/{user_id:str}")
 async def add_user_to_project(
     db_session: AsyncSession,
-    connection: ASGIConnection,
+    request: Request,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -743,8 +743,8 @@ async def add_user_to_project(
     # permissions:
     # - admin can add anyone with any project role
     # - teamlead can only add members in projects they lead
-    if not connection.user.is_admin:
-        actor_id = str(connection.user.id)
+    if not request.user.is_admin:
+        actor_id = str(request.user.id)
         actor_role = await get_project_role(
             db_session, project_id=project_id, user_id=actor_id
         )
@@ -826,7 +826,7 @@ async def add_objective_to_project(
 @patch("/projects/{project_id:str}/users/{user_id:str}/role")
 async def change_user_role(
     db_session: AsyncSession,
-    connection: ASGIConnection,
+    request: Request,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -862,8 +862,8 @@ async def change_user_role(
     # permissions:
     # admin: everything
     # teamlead: only member -> teamlead (no demotions)
-    if not connection.user.is_admin:
-        actor_id = str(connection.user.id)
+    if not request.user.is_admin:
+        actor_id = str(request.user.id)
         actor_role = await get_project_role(
             db_session, project_id=project_id, user_id=actor_id
         )
