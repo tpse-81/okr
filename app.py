@@ -8,6 +8,7 @@ from litestar.params import Parameter
 from litestar.router import Router
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.config.cors import CORSConfig
+from litestar.connection import ASGIConnection
 
 # Importing the database models
 from authentication import (
@@ -84,6 +85,12 @@ async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> boo
     key_result = result.scalar_one_or_none()
     return key_result is not None
 
+async def get_project_role(db_session: AsyncSession, *, project_id: str, user_id: str) -> UserRole | None:
+    stmt = select(UserProject.role).where(
+        UserProject.project_id == project_id,
+        UserProject.user_id == user_id,
+    )
+    return await db_session.scalar(stmt)
 
 @get("/hello")
 async def hello_world(
@@ -709,6 +716,7 @@ async def get_users_for_project(
 @post("/projects/{project_id:str}/users/{user_id:str}")
 async def add_user_to_project(
     db_session: AsyncSession,
+    connection: ASGIConnection,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -731,6 +739,23 @@ async def add_user_to_project(
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
+    
+    # permissions:
+    # - admin can add anyone with any project role
+    # - teamlead can only add members in projects they lead
+    if not connection.user.is_admin:
+        actor_id = str(connection.user.id)
+        actor_role = await get_project_role(
+            db_session, project_id=project_id, user_id=actor_id
+        )
+
+        if actor_role != UserRole.LEADER:
+            raise ClientException(status_code=403, detail="Forbidden")
+
+        if role != UserRole.MEMBER:
+            raise ClientException(
+                status_code=403, detail="Teamleads can only add members"
+            )
 
     # check if user already in project
     already_in_project = await db_session.scalar(
@@ -801,6 +826,7 @@ async def add_objective_to_project(
 @patch("/projects/{project_id:str}/users/{user_id:str}/role")
 async def change_user_role(
     db_session: AsyncSession,
+    connection: ASGIConnection,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -832,6 +858,29 @@ async def change_user_role(
 
     if not user_project:
         raise NotFoundException("User is not assigned to this project")
+    
+    # permissions:
+    # admin: everything
+    # teamlead: only member -> teamlead (no demotions)
+    if not connection.user.is_admin:
+        actor_id = str(connection.user.id)
+        actor_role = await get_project_role(
+            db_session, project_id=project_id, user_id=actor_id
+        )
+
+        # must be teamlead in this project
+        if actor_role != UserRole.LEADER:
+            raise ClientException(status_code=403, detail="Forbidden")
+
+        # teamlead can only set role to TEAMLEAD (promotion)
+        if role != UserRole.LEADER:
+            raise ClientException(
+                status_code=403, detail="Teamleads cannot demote roles"
+            )
+
+        # allow no-op: leader -> leader
+        if user_project.role == UserRole.LEADER:
+                return SuccessResponse("Role successfully updated")
 
     # change the role
     user_project.role = role
