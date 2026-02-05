@@ -357,6 +357,7 @@ async def update_task(
 @post("/projects", dto=ProjectWriteDTO, return_dto=None)
 async def create_project(
     db_session: AsyncSession,
+    request: Request,  
     # all project parameters are mandatory, so enforce they're not unset
     data: Project,
 ) -> SuccessResponse:
@@ -380,6 +381,17 @@ async def create_project(
 
     # create new database entry for project with parameters from URL
     db_session.add(project)
+    await db_session.commit()
+
+    creator_id = str(request.user.id)
+
+    db_session.add(
+        UserProject(
+            project_id=str(project_id),
+            user_id=creator_id,
+            role=UserRole.LEADER,
+        )
+    )
     await db_session.commit()
 
     return SuccessResponse("successfully created project")
@@ -742,7 +754,8 @@ async def add_user_to_project(
     
     # permissions:
     # - admin can add anyone with any project role
-    # - teamlead can only add members in projects they lead
+    # - leader can add members and leaders in projects they lead
+
     if not request.user.is_admin:
         actor_id = str(request.user.id)
         actor_role = await get_project_role(
@@ -752,9 +765,9 @@ async def add_user_to_project(
         if actor_role != UserRole.LEADER:
             raise ClientException(status_code=403, detail="Forbidden")
 
-        if role != UserRole.MEMBER:
+        if role not in (UserRole.MEMBER, UserRole.LEADER):
             raise ClientException(
-                status_code=403, detail="Teamleads can only add members"
+                status_code=403, detail="Forbidden role"
             )
 
     # check if user already in project
