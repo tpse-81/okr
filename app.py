@@ -6,8 +6,13 @@ from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
-from litestar.exceptions import ClientException, NotFoundException
+from litestar.exceptions import (
+    ClientException,
+    NotFoundException,
+    PermissionDeniedException,
+)
 from litestar.config.cors import CORSConfig
+from litestar.connection import Request
 
 # Importing the database models
 from authentication import (
@@ -86,6 +91,29 @@ async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> boo
     )
     key_result = result.scalar_one_or_none()
     return key_result is not None
+
+
+async def get_project_role(
+    db_session: AsyncSession, *, project_id: str, user_id: str
+) -> UserRole | None:
+    """Return the user's role in the given project or None if not assigned."""
+    stmt = select(UserProject.role).where(
+        UserProject.project_id == project_id,
+        UserProject.user_id == user_id,
+    )
+    return await db_session.scalar(stmt)
+
+
+async def has_project_lead_permissions(
+    db_session: AsyncSession, request: Request, *, project_id: str
+) -> bool:
+    """Return True if the current user may act as project leader for this project."""
+    if request.user.is_admin:
+        return True
+    actor_role = await get_project_role(
+        db_session, project_id=project_id, user_id=str(request.user.id)
+    )
+    return actor_role == UserRole.LEADER
 
 
 @get("/hello")
@@ -368,6 +396,7 @@ async def update_task(
 @post("/projects", dto=ProjectWriteDTO, return_dto=None)
 async def create_project(
     db_session: AsyncSession,
+    request: Request,
     # all project parameters are mandatory, so enforce they're not unset
     data: Project,
 ) -> SuccessResponse:
@@ -391,6 +420,17 @@ async def create_project(
 
     # create new database entry for project with parameters from URL
     db_session.add(project)
+    await db_session.commit()
+
+    creator_id = str(request.user.id)
+
+    db_session.add(
+        UserProject(
+            project_id=str(project_id),
+            user_id=creator_id,
+            role=UserRole.LEADER,
+        )
+    )
     await db_session.commit()
 
     return SuccessResponse("successfully created project")
@@ -486,6 +526,11 @@ async def get_users(db_session: AsyncSession) -> list[User]:
     return: a JSON list of users
     """
     return list(await db_session.scalars(select(User)))
+
+
+@get("/me", return_dto=UserReadDTO)
+async def get_me(request: Request) -> User:
+    return request.user
 
 
 @dataclass
@@ -751,6 +796,7 @@ async def get_key_results_for_objective(
 @get("/projects/{project_id:str}/users", return_dto=UserReadDTO)
 async def get_users_for_project(
     db_session: AsyncSession,
+    request: Request,
     project_id: str = Parameter(),
 ) -> list[User]:
     """
@@ -762,7 +808,11 @@ async def get_users_for_project(
 
     # retrieve all users related to the project
     users = await db_session.scalars(
-        select(User).join(UserProject).where(UserProject.project_id == project_id)
+        select(User)
+        .join(UserProject)
+        .where(
+            UserProject.project_id == project_id,
+        )
     )
 
     return list(users)
@@ -771,6 +821,7 @@ async def get_users_for_project(
 @post("/projects/{project_id:str}/users/{user_id:str}")
 async def add_user_to_project(
     db_session: AsyncSession,
+    request: Request,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -794,6 +845,15 @@ async def add_user_to_project(
     if not project:
         raise NotFoundException("Project not found")
 
+    # permissions:
+    # - admin can add anyone with any project role
+    # - leader can add members and leaders in projects they lead
+
+    if not await has_project_lead_permissions(
+        db_session, request, project_id=project_id
+    ):
+        raise PermissionDeniedException()
+
     # check if user already in project
     already_in_project = await db_session.scalar(
         select(
@@ -805,7 +865,9 @@ async def add_user_to_project(
         )
     )
     if already_in_project:
-        raise NotFoundException("User already assigned to this project")
+        raise ClientException(
+            status_code=409, detail="User already assigned to this project"
+        )
 
     # create new entry
     user_project = UserProject(project_id=project_id, user_id=user_id, role=role)
@@ -863,6 +925,7 @@ async def add_objective_to_project(
 @patch("/projects/{project_id:str}/users/{user_id:str}/role")
 async def change_user_role(
     db_session: AsyncSession,
+    request: Request,
     project_id: str = Parameter(),
     user_id: str = Parameter(),
     role: UserRole = Parameter(),
@@ -894,6 +957,27 @@ async def change_user_role(
 
     if not user_project:
         raise NotFoundException("User is not assigned to this project")
+
+    # permissions:
+    # admin: everything
+    # teamlead: only member -> teamlead (no demotions)
+    if not request.user.is_admin:
+        if not await has_project_lead_permissions(
+            db_session, request, project_id=project_id
+        ):
+            raise PermissionDeniedException()
+
+        # teamlead restrictions
+        if user.is_admin:
+            raise PermissionDeniedException()
+
+        # teamlead can only set role to TEAMLEAD (promotion)
+        if role != UserRole.LEADER:
+            raise PermissionDeniedException()
+
+        # allow no-op: leader -> leader
+        if user_project.role == UserRole.LEADER:
+            return SuccessResponse("Role successfully updated")
 
     # change the role
     user_project.role = role
@@ -1102,6 +1186,7 @@ cors_config = CORSConfig(
 authenticated_router = Router(
     path="/",
     route_handlers=[
+        get_me,
         get_projects,
         get_project,
         create_project,
