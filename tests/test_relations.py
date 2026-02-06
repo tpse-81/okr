@@ -102,7 +102,7 @@ def test_query_users_by_project(auth_client):
     assert response.status_code == HTTP_200_OK
 
     data = response.json()
-    assert len(data) == 2
+    assert len(data) == 3
 
     us = [u["id"] for u in data]
     assert u1 in us
