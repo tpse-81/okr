@@ -93,7 +93,7 @@ def test_user_not_exist(auth_client):
     # Test 6: remove user from project successfully
 def test_remove_user_from_project(auth_client):
     p = create_project(auth_client)
-    u = create_user(auth_client, name="U1")
+    u = create_user(auth_client)
 
     # user mit Rolle member hinzufügen
     response = auth_client.post(f"/projects/{p}/users/{u}?role=member")
