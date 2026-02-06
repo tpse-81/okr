@@ -4,11 +4,12 @@ from typing import Annotated, Any
 
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post, patch
-from litestar.connection import ASGIConnection
+from litestar.connection import ASGIConnection, Request
 from litestar.exceptions import (
     ClientException,
     NotAuthorizedException,
     NotFoundException,
+    PermissionDeniedException,
 )
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
@@ -194,6 +195,7 @@ def generate_twofa_secret() -> str:
 
 @patch("/users/{user_id:str}/password/change")
 async def change_password(
+    request: Request,
     db_session: AsyncSession,
     user_id: str = Parameter(),
     data: ChangePasswordRequest = Body(title="Change Password Request"),
@@ -211,9 +213,16 @@ async def change_password(
     if not user:
         raise NotFoundException("User not found")
 
+    actor = request.user
+
+    # Only the admin or the user can change the password
+    if not actor.is_admin and str(actor.id) != user_id:
+        raise PermissionDeniedException("Not allowed")
+
     # verify old password
-    if not verify_password(user.password_hash, data.old_password):
-        raise NotAuthorizedException("Old password is incorrect")
+    if not actor.is_admin:
+        if not verify_password(user.password_hash, data.old_password):
+            raise NotAuthorizedException("Old password is incorrect")
 
     # hash and store new password
     user.password_hash = hash_password(data.new_password)
