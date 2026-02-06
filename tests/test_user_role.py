@@ -112,7 +112,7 @@ def test_remove_user_from_project(auth_client):
 # Test 7: trying to remove user that is not in the project
 def test_remove_user_from_project_not_assigned(auth_client):
     p = create_project(auth_client)
-    u = create_user(auth_client, name="U1")
+    u = create_user(auth_client)
 
     # user wurde nie zum projekt hinzugefügt
     response = auth_client.delete(f"/projects/{p}/users/{u}")
