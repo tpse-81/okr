@@ -497,6 +497,7 @@ async def get_users(db_session: AsyncSession) -> list[User]:
 async def get_me(request: Request) -> User:
     return request.user
 
+
 @dataclass
 class CreateUserRequest:
     name: str
