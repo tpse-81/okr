@@ -6,7 +6,11 @@ from litestar import Litestar, get, patch, post, delete
 from litestar.openapi.spec import Components, SecurityScheme, Tag
 from litestar.params import Parameter
 from litestar.router import Router
-from litestar.exceptions import ClientException, NotFoundException
+from litestar.exceptions import (
+    ClientException,
+    NotFoundException,
+    PermissionDeniedException,
+)
 from litestar.config.cors import CORSConfig
 from litestar.connection import Request
 
@@ -89,11 +93,24 @@ async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> boo
 async def get_project_role(
     db_session: AsyncSession, *, project_id: str, user_id: str
 ) -> UserRole | None:
+    """Return the user's role in the given project or None if not assigned."""
     stmt = select(UserProject.role).where(
         UserProject.project_id == project_id,
         UserProject.user_id == user_id,
     )
     return await db_session.scalar(stmt)
+
+
+async def has_project_lead_permissions(
+    db_session: AsyncSession, request: Request, *, project_id: str
+) -> bool:
+    """Return True if the current user may act as project leader for this project."""
+    if request.user.is_admin:
+        return True
+    actor_role = await get_project_role(
+        db_session, project_id=project_id, user_id=str(request.user.id)
+    )
+    return actor_role == UserRole.LEADER
 
 
 @get("/hello")
@@ -733,7 +750,6 @@ async def get_users_for_project(
         .join(UserProject)
         .where(
             UserProject.project_id == project_id,
-            User.id != request.user.id,
         )
     )
 
@@ -771,17 +787,10 @@ async def add_user_to_project(
     # - admin can add anyone with any project role
     # - leader can add members and leaders in projects they lead
 
-    if not request.user.is_admin:
-        actor_id = str(request.user.id)
-        actor_role = await get_project_role(
-            db_session, project_id=project_id, user_id=actor_id
-        )
-
-        if actor_role != UserRole.LEADER:
-            raise ClientException(status_code=403, detail="Forbidden")
-
-        if role not in (UserRole.MEMBER, UserRole.LEADER):
-            raise ClientException(status_code=403, detail="Forbidden role")
+    if not await has_project_lead_permissions(
+        db_session, request, project_id=project_id
+    ):
+        raise PermissionDeniedException()
 
     # check if user already in project
     already_in_project = await db_session.scalar(
@@ -794,7 +803,9 @@ async def add_user_to_project(
         )
     )
     if already_in_project:
-        raise NotFoundException("User already assigned to this project")
+        raise ClientException(
+            status_code=409, detail="User already assigned to this project"
+        )
 
     # create new entry
     user_project = UserProject(project_id=project_id, user_id=user_id, role=role)
@@ -889,20 +900,18 @@ async def change_user_role(
     # admin: everything
     # teamlead: only member -> teamlead (no demotions)
     if not request.user.is_admin:
-        actor_id = str(request.user.id)
-        actor_role = await get_project_role(
-            db_session, project_id=project_id, user_id=actor_id
-        )
+        if not await has_project_lead_permissions(
+            db_session, request, project_id=project_id
+        ):
+            raise PermissionDeniedException()
 
-        # must be teamlead in this project
-        if actor_role != UserRole.LEADER:
-            raise ClientException(status_code=403, detail="Forbidden")
+        # teamlead restrictions
+        if user.is_admin:
+            raise PermissionDeniedException()
 
         # teamlead can only set role to TEAMLEAD (promotion)
         if role != UserRole.LEADER:
-            raise ClientException(
-                status_code=403, detail="Teamleads cannot demote roles"
-            )
+            raise PermissionDeniedException()
 
         # allow no-op: leader -> leader
         if user_project.role == UserRole.LEADER:
@@ -1115,6 +1124,7 @@ cors_config = CORSConfig(
 authenticated_router = Router(
     path="/",
     route_handlers=[
+        get_me,
         get_projects,
         get_project,
         create_project,
