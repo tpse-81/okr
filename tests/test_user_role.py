@@ -1,4 +1,10 @@
-from litestar.status_codes import HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND,HTTP_201_CREATED, HTTP_204_NO_CONTENT
+from litestar.status_codes import (
+    HTTP_200_OK,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_201_CREATED,
+    HTTP_204_NO_CONTENT,
+)
 
 
 from utils import create_project, create_user, app
@@ -89,8 +95,9 @@ def test_user_not_exist(auth_client):
 
     assert response.status_code == HTTP_404_NOT_FOUND
 
-
     # Test 6: remove user from project successfully
+
+
 def test_remove_user_from_project(auth_client):
     p = create_project(auth_client)
     u = create_user(auth_client)
