@@ -29,6 +29,23 @@ class JWTSettings:
 
 
 @attrs.frozen
+class WebauthnSettings:
+    app_name: str = "OKR Tool"
+    """
+    Name of the app. Used for registering Webauthn tokens.
+    """
+
+    app_url: str = "localhost"
+    """
+    URL to the frontend of the app. This must not contain any protocol scheme or port!
+
+    Example values:
+    - "localhost" if the frontend is running on "http://localhost:5173"
+    - "foobar.example.com" if the frontend is running on "https://foobar.example.com"
+    """
+
+
+@attrs.frozen
 class Admin:
     username: str = "admin"
     """
@@ -60,6 +77,13 @@ class Settings:
     The JSON web token configuration.
 
     JWT tokens secure user sessions and manages how long a login session remains valid.
+    """
+
+    webauth_config: WebauthnSettings = WebauthnSettings()
+    """
+    The Webauthn configuration.
+
+    This mostly defines information about the "relying party" (i.e. the app itself), e.g. it's web URL and name.
     """
 
     admin: Admin = Admin()
