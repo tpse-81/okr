@@ -78,5 +78,12 @@ class UserWriteDTO(SQLAlchemyDTO[User]):
     """
 
     config = DTOConfig(
-        exclude={"id", "password_hash", "two_fa_secret", "projects", "tasks"}
+        exclude={
+            "id",
+            "password_hash",
+            "two_fa_secret",
+            "projects",
+            "tasks",
+            "webauthn",
+        }
     )

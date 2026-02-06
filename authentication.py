@@ -1,3 +1,5 @@
+from webauthn_handlers import try_authenticate_user
+from enum import Enum
 from dataclasses import dataclass
 from typing import Annotated, Any
 import typing
@@ -134,6 +136,8 @@ class LoginRequest:
     name: str
     password: str
     two_fa_code: str | None = None
+    # TODO: 2fa is not yet implemented, so the code is ignored
+    webauthn_response: dict[str, Any] | None = None
 
 
 @dataclass
@@ -142,12 +146,25 @@ class ChangePasswordRequest:
     new_password: str
 
 
+class TwoFaType(str, Enum):
+    WEBAUTHN = "webauthn"
+    TOTP = "totp"
+
+
+@dataclass
+class TwoFaRequiredResponse:
+    type: TwoFaType
+    user_id: str
+
+
 @post("/login", return_dto=UserReadDTO)
 async def login_handler(
     data: Annotated[LoginRequest, Body(title="Login Request")], db_session: AsyncSession
 ) -> Response[User]:
     """
     Login to the application.
+    If 2FA is required but not provided, a HTTP 403 "Not Authorized" error will be returned.
+
     param data: the login data the user entered
     return: a JSON object containing the generated jwt token
     """
@@ -169,11 +186,23 @@ async def login_handler(
     if secret and not pending:
         code = _normalize_totp_code(data.two_fa_code)
         if not code:
-            raise ClientException("2FA code required")
+            raise PermissionDeniedException(
+                extra=TwoFaRequiredResponse(TwoFaType.TOTP, str(user.id)).__dict__,
+            )
         if not verify_totp(secret, code):
             raise ClientException("invalid 2FA code")
 
+    # user has Webauthn set up -> needs to be validated as well
+    if user.webauthn:
+        if not data.webauthn_response:
+            raise PermissionDeniedException(
+                extra=TwoFaRequiredResponse(TwoFaType.WEBAUTHN, str(user.id)).__dict__,
+            )
+
+        try_authenticate_user(str(user.id), user.webauthn, data.webauthn_response)
+
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
+    user.webauthn = None
     response = Response(content=user)
     response.set_cookie(
         key=AUTH_COOKIE_NAME,

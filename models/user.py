@@ -5,6 +5,7 @@ from uuid import UUID
 from models.user_project import UserProject
 from models.task import Task
 from models.user_task import user_task
+from models.webauthn_credentials import WebauthnCredentials
 
 
 @dataclass
@@ -31,4 +32,14 @@ class User(base.UUIDBase):
     # N->N relationship with Task
     tasks: Mapped[list["Task"]] = relationship(
         "Task", secondary=user_task, lazy="selectin"
+    )
+
+    # 1-1 relationship with Webauthn credentials
+    # could possibly extended in the future to also store multiple keys
+    webauthn: Mapped[WebauthnCredentials | None] = relationship(
+        "WebauthnCredentials",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )

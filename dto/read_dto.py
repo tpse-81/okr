@@ -45,4 +45,6 @@ class UserReadDTO(SQLAlchemyDTO[User]):
     DTO used for serializing User models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"password_hash", "two_fa_secret", "projects", "tasks"})
+    config = DTOConfig(
+        exclude={"password_hash", "two_fa_secret", "projects", "tasks", "webauthn"}
+    )

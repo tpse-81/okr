@@ -1,3 +1,12 @@
+from project_utils import check_value_within_bounds
+from webauthn_handlers import (
+    webauthn_authenticate,
+    webauthn_register,
+    webauthn_get_authentication_options,
+    webauthn_get_registration_options,
+    webauthn_remove_credentials,
+    webauthn_is_configured,
+)
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -28,11 +37,11 @@ from authentication import (
 
 from dto.write_dto import (
     KeyResultWriteDTO,
+    KeyResultWriteUpdateDTO,
+    KeyResultCurrentValueUpdateDTO,
     ObjectiveWriteDTO,
     ProjectWriteDTO,
     TaskWriteDTO,
-    KeyResultWriteUpdateDTO,
-    KeyResultCurrentValueUpdateDTO,
 )
 from models.project import Project, ArchiveReason
 from models.objective import Objective
@@ -70,7 +79,6 @@ from litestar.openapi.plugins import ScalarRenderPlugin
 import uuid
 
 from config import config
-from project_utils import check_value_within_bounds
 from responses import SuccessResponse, UserRoleResponse
 
 
@@ -1253,6 +1261,7 @@ authenticated_router = Router(
         get_key_results_for_objective,
         get_users_for_project,
         add_user_to_project,
+        remove_user_from_project,
         add_objective_to_project,
         change_user_role,
         get_user_role,
@@ -1272,7 +1281,10 @@ authenticated_router = Router(
         change_project_deadline,
         delete_user,
         logout,
-        remove_user_from_project,
+        webauthn_register,
+        webauthn_get_registration_options,
+        webauthn_remove_credentials,
+        webauthn_is_configured,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
@@ -1286,6 +1298,8 @@ public_router = Router(
         hello_world,
         main_page,
         login_handler,
+        webauthn_authenticate,
+        webauthn_get_authentication_options,
         # TODO: creating users should not be possible without authentication!
         create_user,
     ],
