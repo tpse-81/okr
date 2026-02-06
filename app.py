@@ -820,6 +820,48 @@ async def add_user_to_project(
     )
 
 
+@delete("/projects/{project_id:str}/users/{user_id:str}")
+async def remove_user_from_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    user_id: str = Parameter(),
+) -> None:
+    """
+    Remove a user from a project.
+
+    param project_id: the ID of the project
+    param user_id: the ID of the user
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if user exists
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise NotFoundException("User not found")
+
+    # load the UserProject entry (association row)
+    stmt = select(UserProject).where(
+        and_(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id,
+        )
+    )
+    result = await db_session.execute(stmt)
+    user_project = result.scalars().one_or_none()
+
+    if user_project is None:
+        raise NotFoundException("User is not assigned to this project")
+
+
+    # remove the relation
+    await db_session.delete(user_project)
+    await db_session.commit()
+
+
 @post("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
     db_session: AsyncSession,
@@ -1143,6 +1185,7 @@ authenticated_router = Router(
         change_project_deadline,
         delete_user,
         logout,
+        remove_user_from_project,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
