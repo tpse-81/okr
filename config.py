@@ -30,7 +30,6 @@ class JWTSettings:
     """
 
 
-# TODO: actually create admin account on app startup
 @attrs.frozen
 class Admin:
     username: str = "admin"
@@ -77,6 +76,18 @@ class Settings:
     Example setting:
     - 'sqlite+aiosqlite:///okr.sqlite'
     - here, all data will be stored in the 'okr.sqlite' file
+    """
+
+    cors_allow_origins: list[str] = attrs.field(
+        factory=lambda: ["http://localhost:5173"]
+    )
+    """
+    List of allowed CORS origins.
+
+    Required when using cookie-based authentication (allow_credentials=True).
+    Example:
+    - ["http://localhost:5173"]
+    - ["https://app.example.com"]
     """
 
 

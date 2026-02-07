@@ -1,4 +1,10 @@
-from utils import create_project, create_objective, create_key_result, create_task
+from utils import (
+    create_project,
+    create_objective,
+    create_key_result,
+    create_task,
+    create_user,
+)
 from litestar.status_codes import HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
 
 import uuid
@@ -115,21 +121,50 @@ def test_delete_empty(auth_client):
     response = auth_client.delete(f"/tasks/{non_existing_id}")
     assert response.status_code == HTTP_404_NOT_FOUND
 
+    response = auth_client.delete(f"/users/{non_existing_id}")
+    assert response.status_code == HTTP_404_NOT_FOUND
+
 
 # Test 6: delete linked objective
 def test_delete_linked_objective(auth_client):
-    p = create_project(auth_client)
-    o1 = create_objective(auth_client, p)
-    o2 = create_objective(auth_client, p)
+    p1 = create_project(auth_client)
+    p2 = create_project(auth_client)
+    o1 = create_objective(auth_client, p1)
+    o2 = create_objective(auth_client, p2)
+    o3 = create_objective(auth_client, p2)
 
-    # link o2 (child) to o1 (parent)
+    # link o2 (child) to o1 (parent) and o3 to o2
     auth_client.post(f"/objectives/{o1}/children/{o2}")
+    auth_client.post(f"/objectives/{o2}/children/{o3}")
 
-    # delete o1
-    auth_client.delete(f"/objectives/{o1}")
+    # archive p2
+    auth_client.patch(f"/projects/{p2}/archive?archive_reason=on_break")
 
-    # o2 should still be alive
+    # delete o2
+    auth_client.delete(f"/objectives/{o2}")
+
+    # o3 should still be alive
     response = auth_client.get("/objectives")
     oids = {o["id"] for o in response.json()}
-    assert o1 not in oids
-    assert o2 in oids
+    assert o1 in oids
+    assert o2 not in oids
+    assert o3 in oids
+
+    # check if o3 is still unarchived and thus connected to o1
+    response = auth_client.get("objectives/archived")
+    archived_ids = {o["id"] for o in response.json()}
+    assert o1 not in archived_ids
+    assert o3 not in archived_ids
+
+
+# Test 7: delete user
+def test_delete_user(auth_client):
+    u = create_user(auth_client, name="U1")
+
+    response = auth_client.delete(f"/users/{u}")
+    assert response.status_code == HTTP_204_NO_CONTENT
+
+    # make sure the user is really deleted now
+    response = auth_client.get("/users")
+    uids = {user["id"] for user in response.json()}
+    assert u not in uids
