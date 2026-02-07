@@ -22,6 +22,7 @@ from litestar.exceptions import (
 )
 from litestar.config.cors import CORSConfig
 from litestar.connection import Request
+from litestar.connection import ASGIConnection
 
 # Importing the database models
 from authentication import (
@@ -33,7 +34,6 @@ from authentication import (
     totp_confirm,
     totp_disable,
     logout,
-    delete_user,
 )
 
 from dto.write_dto import (
@@ -325,6 +325,20 @@ async def delete_task(db_session: AsyncSession, task_id: str) -> None:
         raise NotFoundException("task not found")
 
     await db_session.delete(task)
+    await db_session.commit()
+
+
+@delete("/users/{user_id:str}")
+async def delete_user(
+    request: Request,
+    db_session: AsyncSession,
+    user_id: str,
+) -> None:
+    user = await db_session.get(User, user_id)
+    if user is None:
+        raise NotFoundException("User not found")
+
+    await db_session.delete(user)
     await db_session.commit()
 
 
