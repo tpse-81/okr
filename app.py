@@ -23,7 +23,6 @@ from authentication import (
     totp_setup,
     totp_confirm,
     totp_disable,
-    get_new_token,
     logout,
 )
 
