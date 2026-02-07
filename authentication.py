@@ -28,10 +28,10 @@ from models.user import User
 from responses import SuccessResponse
 from config import config
 from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW
+from dto.read_dto import UserReadDTO
 
 _BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
-from dto.read_dto import UserReadDTO
 
 JWT_ALGORITHM = "HS256"
 AUTH_COOKIE_NAME = "token"
