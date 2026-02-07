@@ -12,6 +12,7 @@ TOTP_ISSUER = "OKR-Tool"
 TOTP_PENDING_PREFIX = "pending:"
 TOTP_VALID_WINDOW = 1
 
+
 @attrs.frozen
 class JWTSettings:
     secret: str = "secretfortesting"
