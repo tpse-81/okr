@@ -71,6 +71,7 @@ from advanced_alchemy.extensions.litestar import (
     SQLAlchemyAsyncConfig,
     SQLAlchemyPlugin,
 )
+from advanced_alchemy.exceptions import IntegrityError
 
 
 from litestar.openapi import OpenAPIConfig
@@ -581,7 +582,12 @@ async def create_user(
     )
 
     db_session.add(user)
-    await db_session.commit()
+
+    try:
+        await db_session.commit()
+    except IntegrityError:
+        await db_session.rollback()
+        raise ClientException("username or email already in use")
 
     return SuccessResponse("successfully created user")
 

@@ -18,8 +18,8 @@ class User(base.UUIDBase):
     # primary key
     id: Mapped[UUID] = mapped_column(primary_key=True)
     # Table columns/attributes
-    name: Mapped[str] = mapped_column(nullable=False, unique=True)
-    email: Mapped[str]
+    name: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(unique=True, index=True)
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str]
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
