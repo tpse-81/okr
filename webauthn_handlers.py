@@ -58,8 +58,8 @@ async def webauthn_get_registration_options(
     """
     user = cast(User, request.user)
     opts = generate_registration_options(
-        rp_id=config.webauth_config.app_url,
-        rp_name=config.webauth_config.app_name,
+        rp_id=config.twofa_config.app_url,
+        rp_name=config.twofa_config.app_name,
         user_name=user.name,
         # selecting an authenticator is required in order for authenticator
         # apps to discover/suggest the passkey - see https://web.dev/articles/webauthn-discoverable-credentials
@@ -90,7 +90,7 @@ async def webauthn_register(
         verified_registration = verify_registration_response(
             credential=data,
             expected_challenge=base64url_to_bytes(registration_challenges[user.id]),
-            expected_rp_id=config.webauth_config.app_url,
+            expected_rp_id=config.twofa_config.app_url,
             expected_origin=config.cors_allow_origins,
         )
     except InvalidRegistrationResponse as e:
@@ -141,7 +141,7 @@ async def webauthn_get_authentication_options(
     _ = await _get_user_credentials(db_session, user_id)
 
     auth_options = generate_authentication_options(
-        rp_id=config.webauth_config.app_url,
+        rp_id=config.twofa_config.app_url,
     )
     auth_challenges[user_id] = bytes_to_base64url(auth_options.challenge)
 
@@ -157,7 +157,7 @@ def try_authenticate_user(
         verify_authentication_response(
             credential=authentication_response,
             expected_challenge=base64url_to_bytes(auth_challenges[user_id]),
-            expected_rp_id=config.webauth_config.app_url,
+            expected_rp_id=config.twofa_config.app_url,
             expected_origin=config.cors_allow_origins,
             credential_public_key=base64url_to_bytes(
                 webauthn_credentials.credential_public_key

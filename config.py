@@ -7,11 +7,6 @@ from typed_settings.exceptions import TsError
 import attrs
 import typed_settings as ts
 
-# TOTP Settings
-TOTP_ISSUER = "OKR-Tool"
-TOTP_PENDING_PREFIX = "pending:"
-TOTP_VALID_WINDOW = 1
-
 
 @attrs.frozen
 class JWTSettings:
@@ -29,10 +24,10 @@ class JWTSettings:
 
 
 @attrs.frozen
-class WebauthnSettings:
+class TwoFaSettings:
     app_name: str = "OKR Tool"
     """
-    Name of the app. Used for registering Webauthn tokens.
+    Name of the app. Used for registering Webauthn and TOTP tokens.
     """
 
     app_url: str = "localhost"
@@ -42,6 +37,13 @@ class WebauthnSettings:
     Example values:
     - "localhost" if the frontend is running on "http://localhost:5173"
     - "foobar.example.com" if the frontend is running on "https://foobar.example.com"
+    """
+
+    totp_valid_window: int = 1
+    """
+    How many TOTP cycles a one-time password remains valid.
+
+    For example, if this is set to 3, every one-time token is still valid until 3 * 30s = 90s after it was created.
     """
 
 
@@ -79,7 +81,7 @@ class Settings:
     JWT tokens secure user sessions and manages how long a login session remains valid.
     """
 
-    webauth_config: WebauthnSettings = WebauthnSettings()
+    twofa_config: TwoFaSettings = TwoFaSettings()
     """
     The Webauthn configuration.
 

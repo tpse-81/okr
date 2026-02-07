@@ -29,7 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from responses import SuccessResponse
 from config import config
-from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW
 from dto.read_dto import UserReadDTO
 
 _BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
@@ -37,6 +36,7 @@ _BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
 JWT_ALGORITHM = "HS256"
 AUTH_COOKIE_NAME = "token"
+TOTP_PENDING_PREFIX = "pending:"
 
 # TODO: make configurable!
 JWT_SECRET = "secretfortesting"
@@ -75,7 +75,9 @@ def _parse_totp_secret(raw: str | None) -> tuple[str | None, bool]:
 
 
 def verify_totp(secret: str, code: str) -> bool:
-    return pyotp.TOTP(secret).verify(code, valid_window=TOTP_VALID_WINDOW)
+    return pyotp.TOTP(secret).verify(
+        code, valid_window=config.twofa_config.totp_valid_window
+    )
 
 
 def generate_totp_secret() -> str:
@@ -83,7 +85,9 @@ def generate_totp_secret() -> str:
 
 
 def totp_provisioning_uri(secret: str, user_email: str) -> str:
-    return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=TOTP_ISSUER)
+    return pyotp.TOTP(secret).provisioning_uri(
+        name=user_email, issuer_name=config.twofa_config.app_name
+    )
 
 
 @dataclass
