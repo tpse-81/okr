@@ -7,7 +7,7 @@ import re
 import pyotp
 
 from argon2.exceptions import VerifyMismatchError
-from litestar import Response, post, patch
+from litestar import Response, post, patch, delete
 from litestar.connection import ASGIConnection, Request
 from litestar.exceptions import (
     ClientException,
@@ -409,6 +409,24 @@ async def totp_disable(
     user.two_fa_secret = ""
     await db_session.commit()
     return SuccessResponse("TOTP 2FA disabled")
+
+
+@delete("/users/{user_id:str}")
+async def delete_user(
+    connection: ASGIConnection,
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+) -> SuccessResponse:
+    # erlaubt: eigener Account ODER Admin
+    _ensure_self_or_admin(connection, user_id)
+
+    user = await db_session.get(User, user_id)
+    if user is None:
+        raise NotFoundException("User not found")
+
+    await db_session.delete(user)
+    await db_session.commit()
+    return SuccessResponse("Account deleted")
 
 
 @post("/logout")
