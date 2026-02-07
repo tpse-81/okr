@@ -36,6 +36,7 @@ JWT_SECRET = "secretfortesting"
 # how long tokens are valid. If the time has passed, users are automatically getting logged out
 JWT_VALIDITY_DURATION_HOURS = 7 * 24  # 1 week
 
+
 def _normalize_totp_code(code: str | None) -> str | None:
     """
     Normalize user-entered TOTP codes.
