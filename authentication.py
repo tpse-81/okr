@@ -2,7 +2,6 @@ from webauthn_handlers import try_authenticate_user
 from enum import Enum
 from dataclasses import dataclass
 from typing import Annotated, Any
-import typing
 import re
 import pyotp
 

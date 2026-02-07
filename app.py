@@ -22,7 +22,6 @@ from litestar.exceptions import (
 )
 from litestar.config.cors import CORSConfig
 from litestar.connection import Request
-from litestar.connection import ASGIConnection
 
 # Importing the database models
 from authentication import (
