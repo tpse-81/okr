@@ -26,7 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from responses import SuccessResponse
 from config import config
-from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW, _BASE32_RE
+from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW
+
+_BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
