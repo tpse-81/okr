@@ -2,8 +2,8 @@ import uuid
 
 from litestar.status_codes import (
     HTTP_201_CREATED,
+    HTTP_200_OK
 )
-
 from app import app
 
 app.debug = True
@@ -61,18 +61,20 @@ def create_task(client, key_result_id):
     return task.json()[-1].get("id")
 
 
-def create_user(client, name="name", email=None):
+def create_user(client, name="name", email=None, password="testpassword123"):
     email = email or f"{name.lower()}@test.com"
-    if name == "name":
-        name = f"test-user-{uuid.uuid4()}"
-    user = client.post(
+
+    resp = client.post(
         "/users/create",
         json={
             "name": name,
             "email": email,
-            "password": "testpassword123",
+            "password": password,
         },
     )
-    assert user.status_code == HTTP_201_CREATED
-    user = client.get("/users")
-    return user.json()[-1]["id"]
+    assert resp.status_code == HTTP_201_CREATED
+
+    users = client.get("/users")
+    assert users.status_code == HTTP_200_OK
+    return users.json()[-1]["id"]
+
