@@ -7,6 +7,11 @@ from typed_settings.exceptions import TsError
 import attrs
 import typed_settings as ts
 
+# TOTP Settings
+TOTP_ISSUER = "OKR-Tool"
+TOTP_PENDING_PREFIX = "pending:"
+TOTP_VALID_WINDOW = 1
+_BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
 @attrs.frozen
 class JWTSettings:

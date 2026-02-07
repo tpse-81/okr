@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Annotated, Any
+import typing
 import re
 import pyotp
 
@@ -25,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from responses import SuccessResponse
 from config import config
+from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW, _BASE32_RE
 
 API_KEY_HEADER = "Authorization"
 JWT_ALGORITHM = "HS256"
@@ -34,20 +36,26 @@ JWT_SECRET = "secretfortesting"
 # how long tokens are valid. If the time has passed, users are automatically getting logged out
 JWT_VALIDITY_DURATION_HOURS = 7 * 24  # 1 week
 
-# TOTP Settings
-TOTP_ISSUER = "OKR-Tool"
-TOTP_PENDING_PREFIX = "pending:"
-TOTP_VALID_WINDOW = 1
-_BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
-
-
 def _normalize_totp_code(code: str | None) -> str | None:
+    """
+    Normalize user-entered TOTP codes.
+
+    Users often type codes with spaces or hyphens (e.g. "123 456" or "123-456").
+    We strip whitespace and hyphens so verification works with these inputs.
+    """
     if not code:
         return None
     return re.sub(r"[\s-]", "", code) or None
 
 
 def _parse_totp_secret(raw: str | None) -> tuple[str | None, bool]:
+    """
+    Parse a stored TOTP secret value.
+
+    Returns (secret, pending).
+    - secret is normalized to upper-case base32 (or None if invalid / missing)
+    - pending indicates whether the secret is still in "pending:" state
+    """
     if not raw:
         return None, False
     pending = raw.startswith(TOTP_PENDING_PREFIX)
@@ -136,10 +144,10 @@ class ChangePasswordRequest:
 async def login_handler(
     data: Annotated[LoginRequest, Body(title="Login Request")],
     db_session: AsyncSession,
-) -> Response:
+) -> Response[LoginResponse]:
     """
     Login to the application.
-
+    param data: the login data the user entered
     return: a JSON object containing the generated jwt token
     """
     user_query = await db_session.execute(select(User).where(User.email == data.email))
@@ -254,7 +262,8 @@ def _ensure_self_or_admin(connection: ASGIConnection, user_id: str) -> None:
     u = connection.user
     if not u:
         raise NotAuthorizedException()
-    if str(u.id) != user_id and not getattr(u, "is_admin", False):
+    u = typing.cast(User, u)
+    if str(u.id) != user_id and not u.is_admin:
         raise NotAuthorizedException()
 
 
