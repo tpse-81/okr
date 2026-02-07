@@ -61,10 +61,10 @@ def create_task(client, key_result_id):
     return task.json()[-1].get("id")
 
 
-def create_user(client, name="name", email=None):
-    email = email or f"{name.lower()}@test.com"
-    if name == "name":
+def create_user(client, name=None, email=None):
+    if name is None:
         name = f"test-user-{uuid.uuid4()}"
+    email = email or f"{name.lower()}@test.com"
     user = client.post(
         "/users/create",
         json={

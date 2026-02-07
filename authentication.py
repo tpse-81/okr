@@ -23,7 +23,7 @@ from datetime import datetime, timezone, timedelta
 
 from litestar.params import Body, Parameter
 from advanced_alchemy.extensions.litestar import SQLAlchemyPlugin
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User
@@ -168,13 +168,15 @@ async def login_handler(
     param data: the login data the user entered
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(select(User).where(User.name == data.name))
+    user_query = await db_session.execute(
+        select(User).where(func.lower(User.name) == func.lower(data.name))
+    )
     user = user_query.scalar_one_or_none()
 
     # fallback to email
     if not user:
         user_query = await db_session.execute(
-            select(User).where(User.email == data.name)
+            select(User).where(func.lower(User.email) == func.lower(data.name))
         )
         user = user_query.scalar_one_or_none()
 
