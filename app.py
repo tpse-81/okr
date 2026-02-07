@@ -17,13 +17,15 @@ from litestar.connection import Request
 # Importing the database models
 from authentication import (
     AuthenticationMiddleware,
-    generate_twofa_secret,
     hash_password,
     login_handler,
     change_password,
-    get_new_token,
+    totp_setup,
+    totp_confirm,
+    totp_disable,
     logout,
 )
+
 from dto.write_dto import (
     KeyResultWriteDTO,
     ObjectiveWriteDTO,
@@ -39,6 +41,7 @@ from models.user import User
 from models.task import Task
 from models.project_objective import project_objective
 from models.user_project import UserProject, UserRole
+
 
 from dto.read_dto import (
     ProjectReadDTO,
@@ -560,13 +563,12 @@ async def create_user(
     # randomly generate a user_id
     user_id = uuid.uuid4()
     password_hash = hash_password(data.password)
-    two_fa_secret = generate_twofa_secret()
     user = User(
         id=user_id,
         name=data.name,
         email=data.email,
         password_hash=password_hash,
-        two_fa_secret=two_fa_secret,
+        two_fa_secret="",
         is_admin=False,
     )
 
@@ -1256,12 +1258,13 @@ authenticated_router = Router(
         get_user_role,
         add_objective_to_objective,
         change_password,
-        get_new_token,
+        totp_setup,
+        totp_confirm,
+        totp_disable,
         delete_project,
         delete_objective,
         delete_key_result,
         delete_task,
-        get_new_token,
         archive_project,
         unarchive_project,
         get_archived_projects,
@@ -1311,7 +1314,7 @@ async def create_admin_user(app: Litestar):
                 name=config.admin.username,
                 email=config.admin.email,
                 password_hash=config.admin.password_hash,
-                two_fa_secret=generate_twofa_secret(),
+                two_fa_secret="",
                 is_admin=True,
             )
 

@@ -21,7 +21,7 @@ class User(base.UUIDBase):
     email: Mapped[str]
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str]
-    is_admin: Mapped[bool]
+    is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # N->N relationship with Project
     projects: Mapped[list["UserProject"]] = relationship(
