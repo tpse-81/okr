@@ -1,3 +1,5 @@
+import uuid
+
 from litestar.status_codes import (
     HTTP_201_CREATED,
 )
@@ -35,14 +37,13 @@ def create_objective(client, project_id, name="name", description="description")
     return objective.json()[-1].get("id")
 
 
-def create_key_result(client, objective_id):
+def create_key_result(client, objective_id, start_value=15, end_value=10):
     key_result = client.post(
-        "/key_results",
+        f"/objectives/{objective_id}/key_results",
         json={
-            "objective_id": objective_id,
             "description": "description",
-            "start_value": 15,
-            "end_value": 10,
+            "start_value": start_value,
+            "end_value": end_value,
         },
     )
     assert key_result.status_code == HTTP_201_CREATED
@@ -62,6 +63,8 @@ def create_task(client, key_result_id):
 
 def create_user(client, name="name", email=None):
     email = email or f"{name.lower()}@test.com"
+    if name == "name":
+        name = f"test-user-{uuid.uuid4()}"
     user = client.post(
         "/users/create",
         json={

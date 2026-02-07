@@ -9,7 +9,6 @@ from sqlalchemy import Enum as SAEnum
 class UserRole(str, Enum):
     LEADER = "leader"
     MEMBER = "member"
-    READ_ONLY = "read_only"
 
 
 @dataclass

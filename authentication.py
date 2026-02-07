@@ -6,11 +6,12 @@ import pyotp
 
 from argon2.exceptions import VerifyMismatchError
 from litestar import Response, post, patch
-from litestar.connection import ASGIConnection
+from litestar.connection import ASGIConnection, Request
 from litestar.exceptions import (
     ClientException,
     NotAuthorizedException,
     NotFoundException,
+    PermissionDeniedException,
 )
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
@@ -30,8 +31,10 @@ from config import TOTP_ISSUER, TOTP_PENDING_PREFIX, TOTP_VALID_WINDOW
 
 _BASE32_RE = re.compile(r"^[A-Z2-7]+=*$")
 
-API_KEY_HEADER = "Authorization"
+from dto.read_dto import UserReadDTO
+
 JWT_ALGORITHM = "HS256"
+AUTH_COOKIE_NAME = "token"
 
 # TODO: make configurable!
 JWT_SECRET = "secretfortesting"
@@ -96,11 +99,12 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-        auth_header = connection.headers.get(API_KEY_HEADER)
-        if not auth_header:
+        token = connection.cookies.get("token")
+
+        if not token:
             raise NotAuthorizedException()
 
-        jwt_user = verify_jwt(auth_header)
+        jwt_user = verify_jwt(token)
         if not jwt_user:
             raise NotAuthorizedException()
 
@@ -118,7 +122,7 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
         if not user:
             raise NotAuthorizedException()
 
-        return AuthenticationResult(user=user, auth=auth_header)
+        return AuthenticationResult(user=user, auth=token)
 
 
 @dataclass
@@ -127,14 +131,9 @@ class LoginRequest:
     Parameters sent by the user in order to login.
     """
 
-    email: str
+    name: str
     password: str
     two_fa_code: str | None = None
-
-
-@dataclass
-class LoginResponse:
-    jwt_token: str
 
 
 @dataclass
@@ -143,20 +142,26 @@ class ChangePasswordRequest:
     new_password: str
 
 
-@post("/login")
+@post("/login", return_dto=UserReadDTO)
 async def login_handler(
-    data: Annotated[LoginRequest, Body(title="Login Request")],
-    db_session: AsyncSession,
-) -> Response[LoginResponse]:
+    data: Annotated[LoginRequest, Body(title="Login Request")], db_session: AsyncSession
+) -> Response[User]:
     """
     Login to the application.
     param data: the login data the user entered
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(select(User).where(User.email == data.email))
+    user_query = await db_session.execute(select(User).where(User.name == data.name))
     user = user_query.scalar_one_or_none()
 
-    if not user or not verify_password(user.password_hash, data.password):
+    # fallback to email
+    if not user:
+        user_query = await db_session.execute(
+            select(User).where(User.email == data.name)
+        )
+        user = user_query.scalar_one_or_none()
+
+    if user is None or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
 
     # TOTP 2FA: only required if user has a configured secret (and not pending)
@@ -169,10 +174,16 @@ async def login_handler(
             raise ClientException("invalid 2FA code")
 
     jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
-    return Response(
-        content=LoginResponse(jwt_token=jwt_token),
-        headers={"Authorization": jwt_token},
+    response = Response(content=user)
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=jwt_token,
+        max_age=config.jwt_config.validy_duration_hours * (24 * 7),
+        samesite="lax",
+        secure=True,  # https needed, except for localhost
+        httponly=True,  # True, so that cookies cant be read by javascript
     )
+    return response
 
 
 def create_jwt(user: User, validity_hours: int) -> str:
@@ -233,6 +244,7 @@ def verify_password(password_hash: str, password: str) -> bool:
 
 @patch("/users/{user_id:str}/password/change")
 async def change_password(
+    request: Request,
     db_session: AsyncSession,
     user_id: str = Parameter(),
     data: ChangePasswordRequest = Body(title="Change Password Request"),
@@ -250,9 +262,16 @@ async def change_password(
     if not user:
         raise NotFoundException("User not found")
 
+    actor = request.user
+
+    # Only the admin or the user can change the password
+    if not actor.is_admin and str(actor.id) != user_id:
+        raise PermissionDeniedException("Not allowed")
+
     # verify old password
-    if not verify_password(user.password_hash, data.old_password):
-        raise NotAuthorizedException("Old password is incorrect")
+    if not actor.is_admin:
+        if not verify_password(user.password_hash, data.old_password):
+            raise NotAuthorizedException("Old password is incorrect")
 
     # hash and store new password
     user.password_hash = hash_password(data.new_password)
@@ -359,3 +378,14 @@ async def totp_disable(
     user.two_fa_secret = ""
     await db_session.commit()
     return SuccessResponse("TOTP 2FA disabled")
+
+
+@post("/logout")
+async def logout() -> Response[None]:
+    response = Response(None)
+
+    response.delete_cookie(
+        key=AUTH_COOKIE_NAME,
+    )
+
+    return response

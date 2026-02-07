@@ -21,6 +21,7 @@ class KeyResult(base.UUIDBase):
     )
     description: Mapped[str]
     start_value: Mapped[float]
+    current_value: Mapped[float]
     end_value: Mapped[float]
 
     # 1 -> N KeyResult -> Task
