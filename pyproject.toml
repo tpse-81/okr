@@ -22,3 +22,11 @@ dev = [
     "pytest>=9.0.1",
     "ruff>=0.14.6",
 ]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dto*", "models*"]
+
