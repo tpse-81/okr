@@ -161,6 +161,30 @@ class TwoFaRequiredResponse:
     user_id: str
 
 
+async def get_user_by_name_or_mail(db_session: AsyncSession, query: str) -> User | None:
+    """
+    Get a user by their name (case-insensitive).
+
+    This method tries to find a user with the given username first.
+    If there's none, it falls back to searching a user whose email equals the query.
+
+    param query: the username or email to search for
+    return: the user for the given query, or `None` if no such user exists
+    """
+    user_query = await db_session.execute(
+        select(User).where(func.lower(User.name) == func.lower(query))
+    )
+    user = user_query.scalar_one_or_none()
+    if user:
+        return user
+
+    # fallback to email
+    user_query = await db_session.execute(
+        select(User).where(func.lower(User.email) == func.lower(query))
+    )
+    return user_query.scalar_one_or_none()
+
+
 @post("/login", return_dto=UserReadDTO)
 async def login_handler(
     data: Annotated[LoginRequest, Body(title="Login Request")], db_session: AsyncSession
@@ -172,18 +196,7 @@ async def login_handler(
     param data: the login data the user entered
     return: a JSON object containing the generated jwt token
     """
-    user_query = await db_session.execute(
-        select(User).where(func.lower(User.name) == func.lower(data.name))
-    )
-    user = user_query.scalar_one_or_none()
-
-    # fallback to email
-    if not user:
-        user_query = await db_session.execute(
-            select(User).where(func.lower(User.email) == func.lower(data.name))
-        )
-        user = user_query.scalar_one_or_none()
-
+    user = await get_user_by_name_or_mail(db_session, data.name)
     if user is None or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
 

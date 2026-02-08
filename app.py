@@ -34,6 +34,7 @@ from authentication import (
     totp_confirm,
     totp_disable,
     logout,
+    get_user_by_name_or_mail,
 )
 
 from dto.write_dto import (
@@ -72,7 +73,6 @@ from advanced_alchemy.extensions.litestar import (
     SQLAlchemyAsyncConfig,
     SQLAlchemyPlugin,
 )
-from advanced_alchemy.exceptions import IntegrityError
 
 
 from litestar.openapi import OpenAPIConfig
@@ -556,6 +556,13 @@ async def create_user(
     if not user.is_admin:
         raise PermissionDeniedException("only admins may create new users")
 
+    # check if there are any conflicts with existing users, e.g. if the username is already used by somebody else
+    existing_user_clash = await get_user_by_name_or_mail(db_session, data.name)
+    if not existing_user_clash:
+        existing_user_clash = await get_user_by_name_or_mail(db_session, data.email)
+    if existing_user_clash:
+        raise ClientException("a user with this name or email already exists")
+
     if is_valid_email(data.name):
         raise ClientException("usernames must not be an e-mail addresses!")
 
@@ -575,12 +582,7 @@ async def create_user(
     )
 
     db_session.add(user)
-
-    try:
-        await db_session.commit()
-    except IntegrityError:
-        await db_session.rollback()
-        raise ClientException("username or email already in use")
+    await db_session.commit()
 
     return SuccessResponse("successfully created user")
 
