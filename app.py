@@ -1,5 +1,9 @@
-from typing import cast
-from project_utils import check_value_within_bounds
+from typing import cast, TypeVar, Generic
+from project_utils import (
+    check_value_within_bounds,
+    get_projects_for_user,
+    calculate_objective_progress,
+)
 from webauthn_handlers import (
     webauthn_authenticate,
     webauthn_register,
@@ -137,6 +141,55 @@ async def main_page() -> str:
     return: a raw text string
     """
     return "OK"
+
+
+# https://docs.litestar.dev/2/usage/dto/1-abstract-dto.html#wrapping-return-data
+# https://github.com/orgs/litestar-org/discussions/3586
+ProjectTypeVar = TypeVar("ProjectTypeVar")
+ObjectiveTypeVar = TypeVar("ObjectiveTypeVar")
+
+
+@dataclass
+class ProjectContainer(Generic[ProjectTypeVar, ObjectiveTypeVar]):
+    project: ProjectTypeVar
+    objectives: list[ObjectiveTypeVar]
+    progress: float
+
+
+@get("/dashboard", return_dto=ProjectReadDTO)
+async def get_dashboard(
+    db_session: AsyncSession, user_id: str | None = Parameter()
+) -> list[ProjectContainer]:
+    if user_id:
+        projects = await get_projects_for_user(db_session, uuid.UUID(user_id))
+    else:
+        projects: list[Project] = list(await db_session.scalars(select(Project)))
+
+    projects_with_info = []
+    for project in projects:
+        objectives = await project_utils.get_objectives_for_project(
+            db_session, str(project.id)
+        )
+
+        # build average progress across all objectives
+        progress_per_objective = [
+            await calculate_objective_progress(db_session, objective.id)
+            for objective in objectives
+        ]
+
+        if objectives:
+            progress = sum(progress_per_objective) / len(objectives)
+        else:
+            progress = 1.0
+
+        project_container = ProjectContainer(
+            project=project,
+            objectives=objectives,
+            progress=progress,
+        )
+        projects_with_info.append(project_container)
+
+    return projects_with_info
 
 
 @get("/projects", return_dto=ProjectReadDTO)
@@ -794,12 +847,9 @@ async def get_key_results_for_objective(
     return: a JSON list of key results related to the given objective
     """
 
-    # retrieve all key results related to the objective
-    key_results = await db_session.scalars(
-        select(KeyResult).where(KeyResult.objective_id == objective_id)
+    return await project_utils.get_key_results_for_objective(
+        db_session, uuid.UUID(objective_id)
     )
-
-    return list(key_results)
 
 
 @get("/projects/{project_id:str}/users", return_dto=UserReadDTO)
@@ -1237,6 +1287,7 @@ authenticated_router = Router(
     path="/",
     route_handlers=[
         get_me,
+        get_dashboard,
         get_projects,
         get_project,
         create_project,
