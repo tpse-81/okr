@@ -1,3 +1,4 @@
+from litestar.testing import TestClient
 import uuid
 
 from litestar.status_codes import (
@@ -61,6 +62,12 @@ def create_task(client, key_result_id):
     return task.json()[-1].get("id")
 
 
+def login(client: TestClient, username, password) -> str:
+    response = client.post("/login", json={"name": username, "password": password})
+    assert response.status_code == HTTP_201_CREATED
+    return response.cookies["token"]
+
+
 def create_user(client, name=None, email=None):
     if name is None:
         name = f"test-user-{uuid.uuid4()}"
@@ -71,6 +78,9 @@ def create_user(client, name=None, email=None):
             "name": name,
             "email": email,
             "password": "testpassword123",
+        },
+        cookies={
+            "token": login(client, "admin", "password"),
         },
     )
     assert user.status_code == HTTP_201_CREATED
