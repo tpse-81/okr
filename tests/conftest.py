@@ -5,6 +5,7 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 from app import app
+from utils import login
 
 import uuid
 
@@ -24,6 +25,9 @@ def test_user(client):
             "name": name,
             "email": "test@example.com",
             "password": "testpassword123",
+        },
+        cookies={
+            "token": login(client, "admin", "password"),
         },
     )
     assert response.status_code == HTTP_201_CREATED

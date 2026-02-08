@@ -7,6 +7,7 @@ from app import app
 from models.user import User
 from authentication import create_jwt, verify_jwt
 from time import sleep
+from utils import login
 
 app.debug = True
 
@@ -20,6 +21,9 @@ def test_create_invalid_user(client):
             "email": "example@test.com",
             "password": "testpassword123",
         },
+        cookies={
+            "token": login(client, "admin", "password"),
+        },
     )
     assert response.status_code == HTTP_400_BAD_REQUEST
 
@@ -30,6 +34,9 @@ def test_create_invalid_user(client):
             "name": "foobar",
             "email": "email-without-at-sign",
             "password": "testpassword123",
+        },
+        cookies={
+            "token": login(client, "admin", "password"),
         },
     )
     assert response.status_code == HTTP_400_BAD_REQUEST

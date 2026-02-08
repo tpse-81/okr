@@ -1,3 +1,4 @@
+from typing import cast
 from project_utils import check_value_within_bounds
 from webauthn_handlers import (
     webauthn_authenticate,
@@ -64,7 +65,7 @@ import project_utils
 from helpers import is_valid_email
 
 from sqlalchemy import select, exists, and_, delete as sa_delete
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.extensions.litestar import (
     AsyncSessionConfig,
@@ -126,18 +127,6 @@ async def has_project_lead_permissions(
         db_session, project_id=project_id, user_id=str(request.user.id)
     )
     return actor_role == UserRole.LEADER
-
-
-@get("/hello")
-async def hello_world(
-    db_session: AsyncSession, db_engine: AsyncEngine
-) -> dict[str, str]:
-    """
-    Prints hello world.
-
-    return: a JSON object
-    """
-    return {"hello": "world"}
 
 
 @get(["/", "/health", "/healthz"], include_in_schema=False)
@@ -555,7 +544,7 @@ class CreateUserRequest:
 # TODO: replace with path "/users" once this route is part of the authentication router group
 @post("/users/create")
 async def create_user(
-    db_session: AsyncSession, data: CreateUserRequest
+    db_session: AsyncSession, data: CreateUserRequest, request: Request
 ) -> SuccessResponse:
     """
     Create a new user.
@@ -563,6 +552,10 @@ async def create_user(
     param data: the user data to create a new user from
     return: whether the user was successfully created
     """
+    user = cast(User, request.user)
+    if not user.is_admin:
+        raise PermissionDeniedException("only admins may create new users")
+
     if is_valid_email(data.name):
         raise ClientException("usernames must not be an e-mail addresses!")
 
@@ -1291,6 +1284,7 @@ authenticated_router = Router(
         webauthn_get_registration_options,
         webauthn_remove_credentials,
         webauthn_is_configured,
+        create_user,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
@@ -1301,13 +1295,10 @@ authenticated_router = Router(
 public_router = Router(
     path="/",
     route_handlers=[
-        hello_world,
         main_page,
         login_handler,
         webauthn_authenticate,
         webauthn_get_authentication_options,
-        # TODO: creating users should not be possible without authentication!
-        create_user,
     ],
     tags=["public"],
 )
