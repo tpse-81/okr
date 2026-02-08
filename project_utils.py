@@ -1,3 +1,4 @@
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists
 
@@ -8,6 +9,8 @@ from litestar.exceptions import NotFoundException
 
 from models.project import Project
 from models.objective import Objective
+from models.key_result import KeyResult
+from models.user_project import UserProject
 from models.project_objective import project_objective
 
 from collections import deque
@@ -148,6 +151,71 @@ async def unarchive_objective_including_children(
         # after the objective gets unarchived, we have to look at its children (and recursively all children of them as well)
         for child in objective.children:
             queue.append(child)
+
+
+async def get_key_results_for_objective(
+    db_session: AsyncSession,
+    objective_id: UUID,
+) -> list[KeyResult]:
+    """
+    Get all key results for a given objective ID.
+
+    param objective_id: the ID of the objective for which to retrieve key results
+    return: a list of key results related to the given objective
+    """
+
+    # retrieve all key results related to the objective
+    key_results = await db_session.scalars(
+        select(KeyResult).where(KeyResult.objective_id == objective_id)
+    )
+
+    return list(key_results)
+
+
+async def get_projects_for_user(
+    db_session: AsyncSession, user_id: UUID
+) -> list[Project]:
+    """
+    Get all projects for the given user.
+
+    param user_id: the id of the user to filter for
+    return: a list of all projects where the current user is participating
+    """
+    stmt = select(Project).join(UserProject).where(UserProject.user_id == user_id)
+    result = await db_session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def calculate_objective_progress(
+    db_session: AsyncSession, objective_id: UUID
+) -> float:
+    """
+    Calculate the progress for an objective by averaging the progress of its key results.
+
+    param objective_id: the ID of the objective to build the progress for
+    return: the progress as float, between 0 and 1
+    """
+    key_results = await get_key_results_for_objective(db_session, objective_id)
+
+    # build average over all key results
+    total = sum(calculate_key_result_progress(key_result) for key_result in key_results)
+    return total / len(key_results)
+
+
+def calculate_key_result_progress(key_result: KeyResult) -> float:
+    """
+    Calculate the progress for a key result.
+
+    param key_result: the key result to build the progress for
+    return: the progress as float, between 0 and 1
+    """
+    diff_target = abs(key_result.end_value - key_result.start_value)
+    diff_current = abs(key_result.current_value - key_result.start_value)
+
+    # prevent division by zero by defaulting to a progress of 1 (done)
+    if diff_target == 0:
+        return 1
+    return float(diff_current) / float(diff_target)
 
 
 def check_value_within_bounds(value, a, b):
