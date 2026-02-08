@@ -21,7 +21,7 @@ class User(base.UUIDBase):
     name: Mapped[str] = mapped_column(nullable=False, unique=True, index=True)
     email: Mapped[str] = mapped_column(unique=True, index=True)
     password_hash: Mapped[str]
-    two_fa_secret: Mapped[str]
+    two_fa_secret: Mapped[str | None]
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # N->N relationship with Project

@@ -1,13 +1,15 @@
+from litestar.testing import TestClient
 from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
+    HTTP_200_OK,
 )
 
 from app import app
 from models.user import User
 from authentication import create_jwt, verify_jwt
 from time import sleep
-from utils import login
+from utils import create_user, login
 
 app.debug = True
 
@@ -101,3 +103,29 @@ def test_not_username_but_email(client, test_user):
     )
 
     assert response.status_code == HTTP_201_CREATED
+
+
+def test_change_password(client: TestClient, test_user):
+    token = login(client, username=test_user["name"], password=test_user["password"])
+    response = client.patch(
+        "/users/password/change",
+        json={"old_password": test_user["password"], "new_password": "newpassword"},
+        cookies={
+            "token": token,
+        },
+    )
+    assert response.status_code == HTTP_200_OK
+
+    login(client, username=test_user["name"], password="newpassword")
+
+
+def test_reset_password(client: TestClient):
+    u = create_user(client, name="reset-test", email="reset@password.com")
+    response = client.patch(
+        f"/users/{u}/password/reset",
+        json={"new_password": "newpassword"},
+        cookies={"token": login(client, "admin", "password")},
+    )
+    assert response.status_code == HTTP_200_OK
+
+    login(client, username="reset-test", password="newpassword")

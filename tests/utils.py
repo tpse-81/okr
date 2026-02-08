@@ -3,6 +3,7 @@ import uuid
 
 from litestar.status_codes import (
     HTTP_201_CREATED,
+    HTTP_200_OK,
 )
 
 from app import app
@@ -69,6 +70,10 @@ def login(client: TestClient, username, password) -> str:
 
 
 def create_user(client, name=None, email=None):
+    admin_cookies = {
+        "token": login(client, "admin", "password"),
+    }
+
     if name is None:
         name = f"test-user-{uuid.uuid4()}"
     email = email or f"{name.lower()}@test.com"
@@ -79,10 +84,9 @@ def create_user(client, name=None, email=None):
             "email": email,
             "password": "testpassword123",
         },
-        cookies={
-            "token": login(client, "admin", "password"),
-        },
+        cookies=admin_cookies,
     )
     assert user.status_code == HTTP_201_CREATED
-    user = client.get("/users")
+    user = client.get("/users", cookies=admin_cookies)
+    assert user.status_code == HTTP_200_OK
     return user.json()[-1]["id"]

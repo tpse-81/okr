@@ -39,6 +39,7 @@ from authentication import (
     totp_disable,
     logout,
     get_user_by_name_or_mail,
+    reset_password,
 )
 
 from dto.write_dto import (
@@ -1332,6 +1333,7 @@ authenticated_router = Router(
         get_user_role,
         add_objective_to_objective,
         change_password,
+        reset_password,
         totp_setup,
         totp_confirm,
         totp_disable,

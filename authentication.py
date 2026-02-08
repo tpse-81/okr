@@ -1,7 +1,7 @@
 from webauthn_handlers import try_authenticate_user
 from enum import Enum
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 import typing
 import re
 import pyotp
@@ -154,6 +154,11 @@ class ChangePasswordRequest:
     new_password: str
 
 
+@dataclass
+class ResetPasswordRequest:
+    new_password: str
+
+
 class TwoFaType(str, Enum):
     WEBAUTHN = "webauthn"
     TOTP = "totp"
@@ -294,19 +299,52 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-@patch("/users/{user_id:str}/password/change")
+@patch("/users/password/change")
 async def change_password(
     request: Request,
     db_session: AsyncSession,
-    user_id: str = Parameter(),
     data: ChangePasswordRequest = Body(title="Change Password Request"),
 ) -> SuccessResponse:
     """
     Change a user's password.
 
-    param user_id: ID of the user whose password should be changed
     param data: old and new password
     """
+    user = cast(User, request.user)
+
+    # load user
+    user_query = await db_session.execute(select(User).where(User.id == user.id))
+    user = user_query.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    # verify old password
+    if not verify_password(user.password_hash, data.old_password):
+        raise NotAuthorizedException("Old password is incorrect")
+
+    # hash and store new password
+    user.password_hash = hash_password(data.new_password)
+    await db_session.commit()
+
+    return SuccessResponse("password successfully changed")
+
+
+@patch("/users/{user_id:str}/password/reset")
+async def reset_password(
+    request: Request,
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+    data: ResetPasswordRequest = Body(title="Reset Password Request"),
+) -> SuccessResponse:
+    """
+    Reset a user's authentication by changing the password to the given new password and removing 2FA.
+
+    param user_id: ID of the user whose password should be changed
+    param data: new password
+    """
+    actor = cast(User, request.user)
+    if not actor.is_admin:
+        raise PermissionDeniedException("Not allowed")
 
     # load user
     user_query = await db_session.execute(select(User).where(User.id == user_id))
@@ -320,13 +358,11 @@ async def change_password(
     if not actor.is_admin and str(actor.id) != user_id:
         raise PermissionDeniedException("Not allowed")
 
-    # verify old password
-    if not actor.is_admin:
-        if not verify_password(user.password_hash, data.old_password):
-            raise NotAuthorizedException("Old password is incorrect")
-
     # hash and store new password
     user.password_hash = hash_password(data.new_password)
+    user.two_fa_secret = None
+    if user.webauthn:
+        await db_session.delete(user.webauthn)
     await db_session.commit()
 
     return SuccessResponse("password successfully changed")
@@ -419,7 +455,7 @@ async def totp_disable(
         return SuccessResponse("TOTP 2FA already disabled")
 
     if pending:
-        user.two_fa_secret = ""
+        user.two_fa_secret = None
         await db_session.commit()
         return SuccessResponse("pending TOTP setup cleared")
 
@@ -427,7 +463,7 @@ async def totp_disable(
     if not code or not verify_totp(secret, code):
         raise ClientException("invalid 2FA code")
 
-    user.two_fa_secret = ""
+    user.two_fa_secret = None
     await db_session.commit()
     return SuccessResponse("TOTP 2FA disabled")
 
