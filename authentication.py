@@ -105,7 +105,11 @@ class AuthenticationMiddleware(AbstractAuthenticationMiddleware):
     async def authenticate_request(
         self, connection: ASGIConnection
     ) -> AuthenticationResult:
-        token = connection.cookies.get("token")
+        token = connection.cookies.get(AUTH_COOKIE_NAME)
+
+        # fallback to headers for compatibility with OpenAPI docs at `/docs`
+        if not token:
+            token = connection.headers.get(AUTH_COOKIE_NAME)
 
         if not token:
             raise NotAuthorizedException()
