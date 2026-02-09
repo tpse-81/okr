@@ -204,8 +204,7 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
 
 @get("/users/user_id:str}/projects", return_dto=ProjectReadDTO)
 async def get_projects_for_user_id(
-    db_session: AsyncSession,
-    user_id: str = Parameter()
+    db_session: AsyncSession, user_id: str = Parameter()
 ) -> list[Project]:
     """
     Get the list of projects for a given user.
