@@ -4,14 +4,15 @@ from sqlalchemy import select, exists
 
 from responses import SuccessResponse
 
-from litestar.params import Parameter
-from litestar.exceptions import NotFoundException
+from litestar.exceptions import NotFoundException, ClientException
 
 from models.project import Project
 from models.objective import Objective
 from models.key_result import KeyResult
-from models.user_project import UserProject
+from models.user import User
+from models.user_project import UserProject, UserRole
 from models.project_objective import project_objective
+from models.task import Task
 
 from collections import deque
 
@@ -39,8 +40,8 @@ async def get_objectives_for_project(
 
 async def change_project_deadline(
     db_session: AsyncSession,
-    project_id: str = Parameter(),
-    new_deadline: datetime = Parameter(),
+    project_id: str,
+    new_deadline: datetime,
 ) -> SuccessResponse:
     """
     Extends the project deadline
@@ -225,3 +226,129 @@ def check_value_within_bounds(value, a, b):
     high = max(a, b)
 
     return low <= value <= high
+
+
+async def get_user_role_for_project(
+    db_session: AsyncSession, project_id: str, user_id: str
+) -> UserRole | None:
+    """
+    Gets the role for a user in a project
+
+    param project_id: the ID of the project
+    param user_id: the ID of the user
+    return: the role of the user in the project
+    """
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if user exists
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise NotFoundException("User not found")
+
+    stmt = select(UserProject.role).where(
+        UserProject.user_id == user_id, UserProject.project_id == project_id
+    )
+    return await db_session.scalar(stmt)
+
+
+async def has_project_lead_permissions(
+    db_session: AsyncSession, user: User, project_id: str
+) -> bool:
+    """Return True if the current user may act as project leader for this project."""
+    if user.is_admin:
+        return True
+
+    actor_role = await get_user_role_for_project(
+        db_session, project_id=project_id, user_id=str(user.id)
+    )
+    return actor_role == UserRole.LEADER
+
+
+async def has_weak_project_permissions(
+    db_session: AsyncSession, user: User, project_id: str
+) -> bool:
+    """Return True if the current user has permissions to do low-impact actions on the project.
+
+    E.g., such low-impact actions would be creating, updating, deleting objectives and key result ...
+    For permissions to modify projects, see `has_project_lead_permissions` instead.
+    """
+    if user.is_admin:
+        return True
+
+    actor_role = await get_user_role_for_project(
+        db_session, project_id=project_id, user_id=str(user.id)
+    )
+    return actor_role is not None
+
+
+async def has_objective_write_permissions(
+    db_session: AsyncSession, user: User, objective_id: str
+) -> bool:
+    """
+    Check whether a user has permissions for modifying this objective.
+
+    That's true if the user participates in any project that is related to this objective.
+    """
+    current_objective_id = objective_id
+
+    # recursively go over the current objective and all its parent objectives
+    while current_objective_id is not None:
+        current_objective = await db_session.get(Objective, current_objective_id)
+
+        # this case should never happen, i.e. that means that a parent objective no longer exists
+        # if that's the case, we just ignore the error here because that means we found the root parent
+        # object, so there's no chance that the user has write permissions anyways
+        if current_objective is None:
+            return False
+
+        projects_stmt = (
+            select(Project)
+            .join(project_objective)
+            .where(project_objective.c.objective_id == current_objective_id)
+        )
+        related_projects = await db_session.scalars(projects_stmt)
+
+        # check if the user participates in any of the projects linked to the objective
+        for project in related_projects:
+            if await has_weak_project_permissions(db_session, user, str(project.id)):
+                return True
+
+        # continue to search for write permissions in parent objective
+        current_objective_id = current_objective.parent_id
+
+    return False
+
+
+async def has_key_result_write_permissions(
+    db_session: AsyncSession, user: User, key_result_id: str
+) -> bool:
+    """
+    Check whether a user has permissions for modifying this key result.
+
+    That's true if the user participates in any project that is related to this key result.
+    """
+    key_result = await db_session.get(KeyResult, key_result_id)
+    if key_result is None:
+        raise ClientException("key result does not exist")
+
+    return await has_objective_write_permissions(
+        db_session, user, key_result.objective_id
+    )
+
+
+async def has_task_write_permissions(
+    db_session: AsyncSession, user: User, task_id: str
+) -> bool:
+    """
+    Check whether a user has permissions for modifying this task.
+
+    That's true if the user participates in any project that is related to this task.
+    """
+    task = await db_session.get(Task, task_id)
+    if task is None:
+        raise ClientException("task does not exist")
+
+    return await has_key_result_write_permissions(db_session, user, task.key_result_id)
