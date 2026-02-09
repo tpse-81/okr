@@ -201,10 +201,10 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
     """
     return list(await db_session.scalars(select(Project)))
 
+
 @get("/[user_id:str}/projects]", return_dto=ProjectReadDTO)
-async def get_projects_for_user(
-        db_session: AsyncSession,
-        user_id: str = Parameter()
+async def get_projects_for_user_id(
+    db_session: AsyncSession, user_id: str = Parameter()
 ) -> list[Project]:
     """
     Get the list of projects.
@@ -1350,7 +1350,7 @@ authenticated_router = Router(
         webauthn_remove_credentials,
         webauthn_is_configured,
         create_user,
-        get_projects_for_user,
+        get_projects_for_user_id,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
