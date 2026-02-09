@@ -3,6 +3,12 @@ from project_utils import (
     check_value_within_bounds,
     get_projects_for_user,
     calculate_objective_progress,
+    get_user_role_for_project,
+    has_project_lead_permissions,
+    has_weak_project_permissions,
+    has_objective_write_permissions,
+    has_key_result_write_permissions,
+    has_task_write_permissions,
 )
 from webauthn_handlers import (
     webauthn_authenticate,
@@ -110,29 +116,6 @@ async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> boo
     )
     key_result = result.scalar_one_or_none()
     return key_result is not None
-
-
-async def get_project_role(
-    db_session: AsyncSession, *, project_id: str, user_id: str
-) -> UserRole | None:
-    """Return the user's role in the given project or None if not assigned."""
-    stmt = select(UserProject.role).where(
-        UserProject.project_id == project_id,
-        UserProject.user_id == user_id,
-    )
-    return await db_session.scalar(stmt)
-
-
-async def has_project_lead_permissions(
-    db_session: AsyncSession, request: Request, *, project_id: str
-) -> bool:
-    """Return True if the current user may act as project leader for this project."""
-    if request.user.is_admin:
-        return True
-    actor_role = await get_project_role(
-        db_session, project_id=project_id, user_id=str(request.user.id)
-    )
-    return actor_role == UserRole.LEADER
 
 
 @get(["/", "/health", "/healthz"], include_in_schema=False)
@@ -300,7 +283,9 @@ async def get_objectives(db_session: AsyncSession) -> list[Objective]:
 
 
 @delete("/objectives/{objective_id:str}")
-async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
+async def delete_objective(
+    db_session: AsyncSession, request: Request, objective_id: str
+) -> None:
     """
     Delete an objective and all its Key results and tasks
 
@@ -309,6 +294,11 @@ async def delete_objective(db_session: AsyncSession, objective_id: str) -> None:
     objective = await db_session.get(Objective, objective_id)
     if objective is None:
         raise NotFoundException("objective not found")
+
+    if not await has_objective_write_permissions(
+        db_session, request.user, objective_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this objective")
 
     await db_session.refresh(objective, attribute_names=["children"])
 
@@ -370,7 +360,7 @@ async def get_tasks_from_key_result(
 
 
 @delete("/tasks/{task_id:str}")
-async def delete_task(db_session: AsyncSession, task_id: str) -> None:
+async def delete_task(db_session: AsyncSession, request: Request, task_id: str) -> None:
     """
     Delete a single task
 
@@ -379,6 +369,9 @@ async def delete_task(db_session: AsyncSession, task_id: str) -> None:
     task = await db_session.get(Task, task_id)
     if task is None:
         raise NotFoundException("task not found")
+
+    if not await has_task_write_permissions(db_session, request.user, task_id):
+        raise PermissionDeniedException("no permissions to modify this task")
 
     await db_session.delete(task)
     await db_session.commit()
@@ -410,6 +403,7 @@ async def delete_user(db_session: AsyncSession, request: Request, user_id: str) 
 async def create_task_for_key_result(
     db_session: AsyncSession,
     data: Task,
+    request: Request,
     key_result_id: str = Parameter(),
 ) -> SuccessResponse:
     """
@@ -422,6 +416,11 @@ async def create_task_for_key_result(
 
     if not await key_result_exists(db_session, key_result_id):
         raise NotFoundException("key result not found")
+
+    if not await has_key_result_write_permissions(
+        db_session, request.user, key_result_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this key result")
 
     # randomly generate a task id
     task_id = uuid.uuid4()
@@ -443,6 +442,7 @@ async def create_task_for_key_result(
 @patch("/tasks/{task_id:str}", dto=TaskWriteDTO, return_dto=TaskReadDTO)
 async def update_task(
     db_session: AsyncSession,
+    request: Request,
     # all project parameters are mandatory, so enforce they're not unset
     data: Task,
     task_id: str = Parameter(),
@@ -459,6 +459,9 @@ async def update_task(
     task = task.scalar_one_or_none()
     if task is None:
         raise NotFoundException("task doesn't exist")
+
+    if not await has_task_write_permissions(db_session, request.user, task_id):
+        raise PermissionDeniedException("no permissions to modify this task")
 
     task.description = data.description
     task.task_state = data.task_state
@@ -515,6 +518,7 @@ async def create_project(
 @patch("/projects/{project_id:str}", dto=ProjectWriteDTO, return_dto=ProjectReadDTO)
 async def update_project(
     db_session: AsyncSession,
+    request: Request,
     # all project parameters are mandatory, so enforce they're not unset
     data: Project,
     project_id: str = Parameter(),
@@ -532,6 +536,9 @@ async def update_project(
     if project is None:
         raise NotFoundException("project doesn't exist")
 
+    if not await has_project_lead_permissions(db_session, request.user, project_id):
+        raise PermissionDeniedException("no permissions to update this project")
+
     project.name = data.name
     project.deadline = data.deadline
     project.done = data.done
@@ -546,7 +553,8 @@ async def update_project(
 @delete("/projects/{project_id:str}")
 async def delete_project(
     db_session: AsyncSession,
-    project_id: str,
+    request: Request,
+    project_id: str = Parameter(),
 ) -> None:
     """
     Delete a project and automatically delete all objectives
@@ -558,6 +566,9 @@ async def delete_project(
     project = await db_session.get(Project, project_id)
     if not project:
         raise NotFoundException("Project not found")
+
+    if not await has_project_lead_permissions(db_session, request.user, project_id):
+        raise PermissionDeniedException("no permissions to delete this project")
 
     # make the project archived for the archive_check logic
     project.is_archived = True
@@ -668,6 +679,7 @@ async def create_user(
 async def create_key_result(
     db_session: AsyncSession,
     # all parameters are mandatory, so enforce they're not unset
+    request: Request,
     data: KeyResult,
     objective_id: str = Parameter(),
 ) -> SuccessResponse:
@@ -682,6 +694,11 @@ async def create_key_result(
 
     if not await objective_exists(db_session, objective_id):
         raise NotFoundException("Objective doesn't exist")
+
+    if not await has_objective_write_permissions(
+        db_session, request.user, objective_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this objective")
 
     # randomly generate a key_result id
     key_result_id = uuid.uuid4()
@@ -709,6 +726,7 @@ async def create_key_result(
 async def update_key_result(
     db_session: AsyncSession,
     # all project parameters are mandatory, so enforce they're not unset
+    request: Request,
     data: KeyResult,
     key_result_id: str = Parameter(),
 ) -> KeyResult:
@@ -726,6 +744,11 @@ async def update_key_result(
     key_result = key_result.scalar_one_or_none()
     if key_result is None:
         raise NotFoundException("key result doesn't exist")
+
+    if not await has_key_result_write_permissions(
+        db_session, request.user, key_result_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this key result")
 
     if not (
         check_value_within_bounds(data.current_value, data.start_value, data.end_value)
@@ -750,6 +773,7 @@ async def update_key_result(
 )
 async def update_key_result_current_value(
     db_session: AsyncSession,
+    request: Request,
     data: KeyResult,
     key_result_id: str = Parameter(),
 ) -> KeyResult:
@@ -767,6 +791,11 @@ async def update_key_result_current_value(
     if not key_result:
         raise NotFoundException("key result doesn't exist")
 
+    if not await has_key_result_write_permissions(
+        db_session, request.user, key_result_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this key result")
+
     if not (
         check_value_within_bounds(
             data.current_value, key_result.start_value, key_result.end_value
@@ -782,7 +811,10 @@ async def update_key_result_current_value(
 
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
 async def create_objective(
-    db_session: AsyncSession, data: Objective, project_id: str = Parameter()
+    db_session: AsyncSession,
+    request: Request,
+    data: Objective,
+    project_id: str = Parameter(),
 ) -> SuccessResponse:
     """
     Create a new objective.
@@ -796,6 +828,11 @@ async def create_objective(
     project = await db_session.get(Project, project_id)
     if project is None:
         raise NotFoundException("Project doesn't exist")
+
+    if not await has_weak_project_permissions(db_session, request.user, project_id):
+        raise PermissionDeniedException(
+            "no permissions to create an objective for this project"
+        )
 
     # randomly generate a objective id
     objective_id = uuid.uuid4()
@@ -817,6 +854,7 @@ async def create_objective(
 async def update_objective(
     db_session: AsyncSession,
     # all project parameters are mandatory, so enforce they're not unset
+    request: Request,
     data: Objective,
     objective_id: str = Parameter(),
 ) -> Objective:
@@ -834,6 +872,11 @@ async def update_objective(
     objective = objective.scalar_one_or_none()
     if objective is None:
         raise NotFoundException("objective doesn't exist")
+
+    if not await has_objective_write_permissions(
+        db_session, request.user, objective_id
+    ):
+        raise PermissionDeniedException("no permissions to modify this objective")
 
     objective.name = data.name
     objective.description = data.description
@@ -933,7 +976,7 @@ async def add_user_to_project(
     # - leader can add members and leaders in projects they lead
 
     if not await has_project_lead_permissions(
-        db_session, request, project_id=project_id
+        db_session, request.user, project_id=project_id
     ):
         raise PermissionDeniedException()
 
@@ -1096,6 +1139,8 @@ async def change_user_role(
     param role: the new role that will be changed into
     return: whether the role was successfully changed
     """
+    actor = cast(User, request.user)
+
     # check if project exists
     project = await db_session.get(Project, project_id)
     if not project:
@@ -1119,9 +1164,9 @@ async def change_user_role(
     # permissions:
     # admin: everything
     # teamlead: only member -> teamlead (no demotions)
-    if not request.user.is_admin:
+    if not actor.is_admin:
         if not await has_project_lead_permissions(
-            db_session, request, project_id=project_id
+            db_session, actor, project_id=project_id
         ):
             raise PermissionDeniedException()
 
@@ -1157,19 +1202,7 @@ async def get_user_role(
     return: the role of the user in the project
     """
     # check if project exists
-    project = await db_session.get(Project, project_id)
-    if not project:
-        raise NotFoundException("Project not found")
-
-    # check if user exists
-    user = await db_session.get(User, user_id)
-    if not user:
-        raise NotFoundException("User not found")
-
-    stmt = select(UserProject.role).where(
-        UserProject.user_id == user_id, UserProject.project_id == project_id
-    )
-    role = await db_session.scalar(stmt)
+    role = await get_user_role_for_project(db_session, project_id, user_id)
     if not role:
         raise NotFoundException("User is not part of the project")
 
