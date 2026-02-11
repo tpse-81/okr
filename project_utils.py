@@ -196,6 +196,8 @@ async def calculate_objective_progress(
     return: the progress as float, between 0 and 1
     """
     key_results = await get_key_results_for_objective(db_session, objective_id)
+    if not key_results:
+        return 1.0
 
     # build average over all key results
     total = sum(calculate_key_result_progress(key_result) for key_result in key_results)
