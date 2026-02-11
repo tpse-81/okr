@@ -202,7 +202,7 @@ async def get_projects(db_session: AsyncSession) -> list[Project]:
     return list(await db_session.scalars(select(Project)))
 
 
-@get("/users/user_id:str}/projects", return_dto=ProjectReadDTO)
+@get("/users/{user_id:str}/projects", return_dto=ProjectReadDTO)
 async def get_projects_for_user_id(
     db_session: AsyncSession, user_id: str = Parameter()
 ) -> list[Project]:
