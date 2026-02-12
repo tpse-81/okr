@@ -332,8 +332,8 @@ async def change_password(
     return SuccessResponse("password successfully changed")
 
 
-def _ensure_self_or_admin(connection: ASGIConnection, user_id: str) -> None:
-    u = connection.user
+def _ensure_self_or_admin(request: Request, user_id: str) -> None:
+    u = request.user
     if not u:
         raise NotAuthorizedException()
     u = typing.cast(User, u)
@@ -354,11 +354,11 @@ class TotpCodeRequest:
 
 @post("/users/{user_id:str}/2fa/totp/setup")
 async def totp_setup(
-    connection: ASGIConnection,
+    request: Request,
     db_session: AsyncSession,
     user_id: str = Parameter(),
 ) -> Response:
-    _ensure_self_or_admin(connection, user_id)
+    _ensure_self_or_admin(request, user_id)
 
     user_query = await db_session.execute(select(User).where(User.id == user_id))
     user = user_query.scalar_one_or_none()
@@ -375,12 +375,12 @@ async def totp_setup(
 
 @post("/users/{user_id:str}/2fa/totp/confirm")
 async def totp_confirm(
-    connection: ASGIConnection,
+    request: Request,
     db_session: AsyncSession,
     user_id: str = Parameter(),
     data: TotpCodeRequest = Body(title="TOTP Confirm Request"),
 ) -> SuccessResponse:
-    _ensure_self_or_admin(connection, user_id)
+    _ensure_self_or_admin(request, user_id)
 
     user_query = await db_session.execute(select(User).where(User.id == user_id))
     user = user_query.scalar_one_or_none()
@@ -402,12 +402,12 @@ async def totp_confirm(
 
 @post("/users/{user_id:str}/2fa/totp/disable")
 async def totp_disable(
-    connection: ASGIConnection,
+    request: Request,
     db_session: AsyncSession,
     user_id: str = Parameter(),
     data: TotpCodeRequest = Body(title="TOTP Disable Request"),
 ) -> SuccessResponse:
-    _ensure_self_or_admin(connection, user_id)
+    _ensure_self_or_admin(request, user_id)
 
     user_query = await db_session.execute(select(User).where(User.id == user_id))
     user = user_query.scalar_one_or_none()
