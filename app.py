@@ -383,15 +383,22 @@ async def delete_task(db_session: AsyncSession, task_id: str) -> None:
 
 
 @delete("/users/{user_id:str}")
-async def delete_user(db_session: AsyncSession, user_id: str) -> None:
+async def delete_user(db_session: AsyncSession, request: Request, user_id: str) -> None:
     """
     Delete a user and all related associations.
+    To delete a user, the actor must be either
+    - the admin (i.e. the admin deletes an other user account)
+    - the same user that should be deleted (i.e. the user deletes itself)
 
     param user_id: the ID of the user to delete
     """
     user = await db_session.get(User, user_id)
     if user is None:
         raise NotFoundException("User not found")
+
+    actor = cast(User, request.user)
+    if not (actor.is_admin or actor.id == user.id):
+        raise PermissionDeniedException("no permissions to delete user with given ID")
 
     await db_session.delete(user)
     await db_session.commit()
