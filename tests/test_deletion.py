@@ -4,8 +4,13 @@ from utils import (
     create_key_result,
     create_task,
     create_user,
+    login,
 )
-from litestar.status_codes import HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
+from litestar.status_codes import (
+    HTTP_204_NO_CONTENT,
+    HTTP_404_NOT_FOUND,
+    HTTP_403_FORBIDDEN,
+)
 
 import uuid
 
@@ -159,9 +164,19 @@ def test_delete_linked_objective(auth_client):
 
 # Test 7: delete user
 def test_delete_user(auth_client):
-    u = create_user(auth_client, name="U1")
+    u = create_user(auth_client, name="U1", password="testpassword123")
 
+    # no permissions to delete other user because the current user is not the admin
     response = auth_client.delete(f"/users/{u}")
+    assert response.status_code == HTTP_403_FORBIDDEN
+
+    # user deletes its own account: should work successfully
+    response = auth_client.delete(
+        f"/users/{u}",
+        cookies={
+            "token": login(auth_client, username="U1", password="testpassword123")
+        },
+    )
     assert response.status_code == HTTP_204_NO_CONTENT
 
     # make sure the user is really deleted now

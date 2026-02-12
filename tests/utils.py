@@ -69,7 +69,7 @@ def login(client: TestClient, username, password) -> str:
     return response.cookies["token"]
 
 
-def create_user(client, name=None, email=None):
+def create_user(client, name=None, email=None, password=None):
     admin_cookies = {
         "token": login(client, "admin", "password"),
     }
@@ -82,7 +82,7 @@ def create_user(client, name=None, email=None):
         json={
             "name": name,
             "email": email,
-            "password": "testpassword123",
+            "password": password or "testpassword123",
         },
         cookies=admin_cookies,
     )
