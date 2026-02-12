@@ -3,6 +3,7 @@ from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_404_NOT_FOUND,
     HTTP_400_BAD_REQUEST,
+    HTTP_204_NO_CONTENT,
 )
 
 from utils import (
@@ -17,7 +18,7 @@ from utils import (
 app.debug = True
 
 
-# Test 1: Query objectives by project ID
+# Test 0: Query objectives by project ID
 def test_query_objectives_by_project(auth_client):
     # create a project
     p = create_project(auth_client)
@@ -36,6 +37,39 @@ def test_query_objectives_by_project(auth_client):
     names = [o["name"] for o in data]
     assert "O1" in names
     assert "O2" in names
+
+
+# Test 1: Link and unlink objectives to/from a project
+def test_link_objectives_to_project(auth_client):
+    # create a project
+    p = create_project(auth_client)
+
+    # create 2 objectives for the same project
+    o = create_objective(auth_client, p, name="O1")
+
+    # check if the objective can be queried
+    response = auth_client.get(f"/projects/{p}/objectives")
+    assert response.status_code == HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+
+    # remove link between objective and project
+    response = auth_client.delete(f"/projects/{p}/objectives/{o}")
+    assert response.status_code == HTTP_204_NO_CONTENT
+
+    response = auth_client.get(f"/projects/{p}/objectives")
+    assert response.status_code == HTTP_200_OK
+    data = response.json()
+    assert len(data) == 0
+
+    # re-add link between objective and project
+    response = auth_client.post(f"/projects/{p}/objectives/{o}")
+    assert response.status_code == HTTP_201_CREATED
+
+    response = auth_client.get(f"/projects/{p}/objectives")
+    assert response.status_code == HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
 
 
 # Test 2: Query key results by objective ID
