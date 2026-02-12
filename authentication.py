@@ -468,6 +468,32 @@ async def totp_disable(
     return SuccessResponse("TOTP 2FA disabled")
 
 
+@dataclass
+class TotpConfiguredResponse:
+    is_configured: bool
+
+
+@post("/users/{user_id:str}/2fa/totp/is_configured")
+async def totp_is_configured(
+    request: Request,
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+) -> TotpConfiguredResponse:
+    """
+    Check whether the user has 2FA via TOTP enabled.
+
+    param user_id: the ID of the user to check the current TOTP state for
+    return: a JSON dict describing if TOTP is enabled
+    """
+    _ensure_self_or_admin(request, user_id)
+
+    user = cast(User, request.user)
+    if user.two_fa_secret and not user.two_fa_secret.startswith(TOTP_PENDING_PREFIX):
+        return TotpConfiguredResponse(is_configured=True)
+
+    return TotpConfiguredResponse(is_configured=False)
+
+
 @post("/logout")
 async def logout() -> Response[None]:
     response = Response(None)
