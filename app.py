@@ -1045,6 +1045,40 @@ async def add_objective_to_project(
     )
 
 
+@delete("/projects/{project_id:str}/objectives/{objective_id:str}")
+async def remove_objective_from_project(
+    db_session: AsyncSession,
+    project_id: str = Parameter(),
+    objective_id: str = Parameter(),
+) -> None:
+    """
+    Remove an objective from a project
+
+    param project_id: the ID of the project
+    param objective_id: the ID of the objective
+    """
+
+    # check if project exists
+    project = await db_session.get(Project, project_id)
+    if not project:
+        raise NotFoundException("Project not found")
+
+    # check if objective exists
+    objective = await db_session.get(Objective, objective_id)
+    if not objective:
+        raise NotFoundException("Objective not found")
+
+    # link the objective to the project (if already linked nothing happens)
+    if objective in project.objectives:
+        project.objectives.remove(objective)
+
+    # it's possible that the objective is orphaned now - i.e. it has no related projects
+    # in this case the objective has to become archived automatically
+    await project_utils.archive_objective_including_children(db_session, [objective])
+
+    await db_session.commit()
+
+
 @patch("/projects/{project_id:str}/users/{user_id:str}/role")
 async def change_user_role(
     db_session: AsyncSession,
@@ -1336,6 +1370,7 @@ authenticated_router = Router(
         add_user_to_project,
         remove_user_from_project,
         add_objective_to_project,
+        remove_objective_from_project,
         change_user_role,
         get_user_role,
         add_objective_to_objective,
