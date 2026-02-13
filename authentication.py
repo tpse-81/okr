@@ -487,7 +487,10 @@ async def totp_is_configured(
     """
     _ensure_self_or_admin(request, user_id)
 
-    user = cast(User, request.user)
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise ClientException("user does not exist")
+
     if user.two_fa_secret and not user.two_fa_secret.startswith(TOTP_PENDING_PREFIX):
         return TotpConfiguredResponse(is_configured=True)
 
