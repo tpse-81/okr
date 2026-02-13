@@ -8,6 +8,9 @@
 ## Run tests
 - `pytest`
 
+## Show test coverage
+- `pytest --cov=.`
+
 ## Format code
 - `ruff format`
 

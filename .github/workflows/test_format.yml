@@ -26,6 +26,9 @@ jobs:
       - name: Run tests with pytest
         run: uv run pytest
 
+      - name: Calculate test coverage with pytest
+        run: uv run pytest --cov=.
+
       - name: Run code linter
         run: uv run ruff check --output-format=github --target-version=py39
 
