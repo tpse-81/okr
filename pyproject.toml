@@ -19,8 +19,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "furo>=2025.12.19",
     "pytest>=9.0.1",
     "ruff>=0.14.6",
+    "sphinx>=9.1.0",
 ]
 
 [build-system]
