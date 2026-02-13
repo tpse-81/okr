@@ -7,7 +7,7 @@ import re
 import pyotp
 
 from argon2.exceptions import VerifyMismatchError
-from litestar import Response, post, patch
+from litestar import Response, post, patch, get
 from litestar.connection import ASGIConnection, Request
 from litestar.exceptions import (
     ClientException,
@@ -473,7 +473,7 @@ class TotpConfiguredResponse:
     is_configured: bool
 
 
-@post("/users/{user_id:str}/2fa/totp/is_configured")
+@get("/users/{user_id:str}/2fa/totp/is_configured")
 async def totp_is_configured(
     request: Request,
     db_session: AsyncSession,
