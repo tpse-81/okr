@@ -229,13 +229,13 @@ async def login_handler(
 
         try_authenticate_user(str(user.id), user.webauthn, data.webauthn_response)
 
-    jwt_token = create_jwt(user, config.jwt_config.validy_duration_hours)
+    jwt_token = create_jwt(user, config.jwt_config.validity_duration_hours)
     response = Response(content=user)
     is_local = config.twofa_config.app_url in ("localhost", "127.0.0.1")
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
         value=jwt_token,
-        max_age=config.jwt_config.validy_duration_hours * 60 * 60,
+        max_age=config.jwt_config.validity_duration_hours * 60 * 60,
         samesite="lax",
         secure=not is_local,  # https needed, except for localhost
         httponly=True,  # True, so that cookies cant be read by javascript
