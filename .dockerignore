@@ -1,0 +1,6 @@
+.github
+.gitignore
+venv
+.venv
+.docs
+.README.md
