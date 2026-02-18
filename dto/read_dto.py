@@ -37,8 +37,6 @@ class TaskReadDTO(SQLAlchemyDTO[Task]):
     DTO used for serializing Task models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"key_result_id"})
-
 
 class UserReadDTO(SQLAlchemyDTO[User]):
     """
