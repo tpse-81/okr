@@ -12,11 +12,9 @@ cors_allow_origins = ["https://example.com"]
 # automatically gets created on first app startup
 username = "admin"
 email = "admin@okr.local"
-# generate by executing the following commands:
+# generate by executing the following command:
 #
-# `python3`
-# `from authentication import hash_password`
-# `hash_password("<your_password_here>")`
+# ./maintenance_script.py hash-password "<your-password-here>"
 #
 # The default value here is `password`, so you could theoretically also just leave it as is
 # and change the password via the Web UI when using the app the first time (on your own responsibility)

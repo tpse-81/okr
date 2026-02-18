@@ -30,7 +30,7 @@ jobs:
         run: uv run pytest --cov=.
 
       - name: Run code linter
-        run: uv run ruff check --output-format=github --target-version=py39
+        run: uv run ruff check --output-format=github --target-version=py310
 
       - name: Check code formatting
-        run: uv run ruff format --diff --target-version=py39
+        run: uv run ruff format --diff --target-version=py310

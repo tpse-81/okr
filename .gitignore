@@ -2,6 +2,7 @@
 **/__pycache__/
 
 /okr.sqlite
+/db.sqlite
 
 /uv.lock
 /.idea/
