@@ -324,6 +324,7 @@ async def change_password(
 
     # hash and store new password
     user.password_hash = hash_password(data.new_password)
+    user.must_change_password = False
     await db_session.commit()
 
     return SuccessResponse("password successfully changed")
@@ -360,6 +361,7 @@ async def reset_password(
 
     # hash and store new password
     user.password_hash = hash_password(data.new_password)
+    user.must_change_password = True
     user.two_fa_secret = None
     if user.webauthn:
         await db_session.delete(user.webauthn)
