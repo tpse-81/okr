@@ -1,13 +1,38 @@
-# See [config.py] for documentation on this!
+# See [config.py] for detailed documentation on the possible values!
 
 [okr]
+# path to the database file - here: ./db.sqlite is used (gets automatically created)
 database_url = "sqlite+aiosqlite:///db.sqlite"
+# list of websites that may access the OKR's public API
+# at minimum, this has to contain the URL of the hosted frontend app
+cors_allow_origins = ["https://example.com"]
 
 [okr.admin]
+# login data for the admin account
+# automatically gets created on first app startup
 username = "admin"
 email = "admin@okr.local"
-password_hash = ""
+# generate by executing the following commands:
+#
+# `python3`
+# `from authentication import hash_password`
+# `hash_password("<your_password_here>")`
+#
+# The default value here is `password`, so you could theoretically also just leave it as is
+# and change the password via the Web UI when using the app the first time (on your own responsibility)
+password_hash = "$argon2id$v=19$m=65536,t=3,p=4$qP4cvuNyXxtoou7Hl7FcTA$4zJxdTYlLJDOuKlyPTep/I1RZQi2ZHS/99YprG5Rp+8"
 
 [okr.jwt_config]
-secret = "SECRET"
+# generate randomly, e.g. via `pwgen 64 1`
+secret = "<random-long-value-here>" 
+# after this period, users will automatically be logged out
 validity_duration_hours = 24
+
+[okr.twofa_config]
+# name of the TOTP/webauthn issuer (will be displayed to users when they use 2FA)
+app_name = "OKR-Tool"
+# url to frontend without "https://"!
+app_url = "example.com"
+
+# how long a totp window should remain valid: 1 = 30s, 2 = 60s, ...
+totp_valid_window = 1
