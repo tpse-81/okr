@@ -63,10 +63,8 @@ class Admin:
     """
     The hash of the admin password. The example hash was generated with the password 'password'.
     
-    To generate, execute the following commands:
-    `python3`
-    `from authentication import hash_password`
-    `hash_password("<your_password_here>")`
+    To generate, execute the following command:
+    `./maintenance_script.py hash-password "<your-password-here>"`
 
     Then, set the `password_hash` configuration value to the output from the above command (without the surrounding quotation marks!).
     """

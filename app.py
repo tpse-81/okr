@@ -663,7 +663,7 @@ async def create_user(
         name=data.name,
         email=data.email,
         password_hash=password_hash,
-        two_fa_secret="",
+        two_fa_secret=None,
         is_admin=False,
         must_change_password=True,
     )
