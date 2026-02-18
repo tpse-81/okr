@@ -665,6 +665,7 @@ async def create_user(
         password_hash=password_hash,
         two_fa_secret="",
         is_admin=False,
+        must_change_password=True,
     )
 
     db_session.add(user)

@@ -23,6 +23,7 @@ class User(base.UUIDBase):
     password_hash: Mapped[str]
     two_fa_secret: Mapped[str | None]
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # N->N relationship with Project
     projects: Mapped[list["UserProject"]] = relationship(
