@@ -1386,6 +1386,20 @@ async def change_project_deadline(
     )
 
 
+@get("/objectives/{parent_id:str}/children", return_dto=ObjectiveReadDTO)
+async def get_objective_children(
+    db_session: AsyncSession, parent_id: str = Parameter()
+) -> list[Objective]:
+    """
+    Returns all the children of an objective
+
+    param parent_id: the ID of the parent objective
+    """
+    stmt = select(Objective).where(Objective.parent_id == parent_id)
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
 # during test execution, data is written into memory and not
 # into the actual persistent database file!
 is_pytest_active = "PYTEST_VERSION" in os.environ
@@ -1465,6 +1479,7 @@ authenticated_router = Router(
         create_user,
         promote_user_to_admin,
         get_projects_for_user_id,
+        get_objective_children,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],

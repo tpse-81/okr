@@ -246,3 +246,20 @@ def test_cyclical_linking(auth_client):
         response.json()["detail"]
         == "Linking these objectives would create a cyclical relationship"
     )
+
+
+def test_get_objective_children(auth_client):
+    p = create_project(auth_client)
+    parent = create_objective(auth_client, p)
+    child1 = create_objective(auth_client, p)
+    child2 = create_objective(auth_client, p)
+
+    # Link children to parent
+    auth_client.post(f"/objectives/{parent}/children/{child1}")
+    auth_client.post(f"/objectives/{parent}/children/{child2}")
+
+    # Check if children are returned correctly
+    response = auth_client.get(f"/objectives/{parent}/children")
+    child_ids = {o["id"] for o in response.json()}
+    assert child1 in child_ids
+    assert child2 in child_ids
