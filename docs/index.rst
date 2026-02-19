@@ -7,9 +7,13 @@ documentation for details.
 
 To build this documentation, run ``sphinx-build docs _build`` in the project root directory.
 
+To get a live preview while editing, run ``sphinx-autobuild docs _build/html``.
+
 
 .. toctree::
-   :maxdepth: 2
+   :numbered:
+   :maxdepth: 5
    :caption: Contents:
 
-   api/modules
+   admin/index
+   Python source code documentation <api/modules>
