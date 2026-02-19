@@ -1,0 +1,26 @@
+services:
+  frontend:
+    image: ghcr.io/tpse-81/okr-frontend:main
+    container_name: okr-frontend
+    ports:
+      - 3000:3000
+    environment:
+      # for production use, change this here to point to the public URL
+      # of your backend server, e.g. "https://okr-api.example.com"
+      - PUBLIC_API_URL="http://localhost:8000"
+    restart: unless-stopped
+    network_mode: bridge
+
+  backend:
+    image: ghcr.io/tpse-81/okr:main
+    container_name: okr-backend
+    ports:
+      - 8000:8000
+    volumes:
+      # see https://github.com/tpse-81/okr/blob/main/examples/config.toml and
+      # https://tpse-81.github.io/okr/api/config.html for information about the
+      # supported configuration options
+      - ./config.toml:/app/config.toml:ro # point this to your configuration file
+      - ./db.sqlite:/app/db.sqlite # point this to the database file path you configured in `config.toml`
+    restart: unless-stopped
+    network_mode: bridge
