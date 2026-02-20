@@ -1,5 +1,5 @@
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND
-from utils import create_objective, create_project
+from utils import create_objective, create_project, create_key_result, create_task
 
 import uuid
 
@@ -17,6 +17,12 @@ def test_archive_project(auth_client):
     # link o1 to p2
     auth_client.post(f"/projects/{p2}/objectives/{o1}")
 
+    # create key results + tasks for both objectives
+    kr1 = create_key_result(auth_client, o1)
+    kr2 = create_key_result(auth_client, o2)
+    t1 = create_task(auth_client, kr1)
+    t2 = create_task(auth_client, kr2)
+
     # check if nothing is archived yet
     response = auth_client.get("/projects/archived")
     assert response.status_code == HTTP_200_OK
@@ -29,6 +35,18 @@ def test_archive_project(auth_client):
     archived_ids = {o["id"] for o in response.json()}
     assert o1 not in archived_ids
     assert o2 not in archived_ids
+
+    response = auth_client.get("/key_results/archived")
+    assert response.status_code == HTTP_200_OK
+    archived_kr_ids = {kr["id"] for kr in response.json()}
+    assert kr1 not in archived_kr_ids
+    assert kr2 not in archived_kr_ids
+
+    response = auth_client.get("/tasks/archived")
+    assert response.status_code == HTTP_200_OK
+    archived_task_ids = {t["id"] for t in response.json()}
+    assert t1 not in archived_task_ids
+    assert t2 not in archived_task_ids
 
     # archive p1
     response = auth_client.patch(f"/projects/{p1}/archive?archive_reason=on_break")
@@ -45,6 +63,19 @@ def test_archive_project(auth_client):
     assert o1 not in archived_ids
     assert o2 in archived_ids
 
+    # only kr2 / t2 should be archived now
+    response = auth_client.get("/key_results/archived")
+    assert response.status_code == HTTP_200_OK
+    archived_kr_ids = {kr["id"] for kr in response.json()}
+    assert kr1 not in archived_kr_ids
+    assert kr2 in archived_kr_ids
+
+    response = auth_client.get("/tasks/archived")
+    assert response.status_code == HTTP_200_OK
+    archived_task_ids = {t["id"] for t in response.json()}
+    assert t1 not in archived_task_ids
+    assert t2 in archived_task_ids
+
     # archive p2
     auth_client.patch(f"/projects/{p2}/archive?archive_reason=on_break")
 
@@ -58,6 +89,16 @@ def test_archive_project(auth_client):
     archived_ids = {o["id"] for o in response.json()}
     assert o1 in archived_ids
     assert o2 in archived_ids
+
+    response = auth_client.get("/key_results/archived")
+    archived_kr_ids = {kr["id"] for kr in response.json()}
+    assert kr1 in archived_kr_ids
+    assert kr2 in archived_kr_ids
+
+    response = auth_client.get("/tasks/archived")
+    archived_task_ids = {t["id"] for t in response.json()}
+    assert t1 in archived_task_ids
+    assert t2 in archived_task_ids
 
     # unarchive p2
     response = auth_client.patch(
@@ -76,6 +117,17 @@ def test_archive_project(auth_client):
     assert o1 not in archived_ids
     assert o2 in archived_ids
 
+    # kr1/t1 active, kr2/t2 still archived
+    response = auth_client.get("/key_results/archived")
+    archived_kr_ids = {kr["id"] for kr in response.json()}
+    assert kr1 not in archived_kr_ids
+    assert kr2 in archived_kr_ids
+
+    response = auth_client.get("/tasks/archived")
+    archived_task_ids = {t["id"] for t in response.json()}
+    assert t1 not in archived_task_ids
+    assert t2 in archived_task_ids
+
     # unarchive p1
     response = auth_client.patch(
         f"/projects/{p1}/unarchive?new_deadline=2025-10-13T10:05:00Z"
@@ -92,6 +144,16 @@ def test_archive_project(auth_client):
     archived_ids = {o["id"] for o in response.json()}
     assert o1 not in archived_ids
     assert o2 not in archived_ids
+
+    response = auth_client.get("/key_results/archived")
+    archived_kr_ids = {kr["id"] for kr in response.json()}
+    assert kr1 not in archived_kr_ids
+    assert kr2 not in archived_kr_ids
+
+    response = auth_client.get("/tasks/archived")
+    archived_task_ids = {t["id"] for t in response.json()}
+    assert t1 not in archived_task_ids
+    assert t2 not in archived_task_ids
 
 
 def test_archive_project_not_exist(auth_client):
