@@ -263,3 +263,24 @@ def test_get_objective_children(auth_client):
     child_ids = {o["id"] for o in response.json()}
     assert child1 in child_ids
     assert child2 in child_ids
+
+
+def test_remove_objective_child_from_parent(auth_client):
+    p = create_project(auth_client)
+    parent = create_objective(auth_client, p)
+    child = create_objective(auth_client, p)
+
+    # Link child to parent
+    auth_client.post(f"/objectives/{parent}/children/{child}")
+
+    # Check if child is linked to parent
+    response = auth_client.get(f"/objectives/{parent}/children")
+    child_ids = {o["id"] for o in response.json()}
+    assert child in child_ids
+
+    # Remove child and check
+    auth_client.delete(f"/objectives/{parent}/children/{child}")
+
+    response = auth_client.get(f"/objectives/{parent}/children")
+    child_ids = {o["id"] for o in response.json()}
+    assert child not in child_ids
