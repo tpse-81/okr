@@ -307,7 +307,7 @@ async def delete_objective(
     for child in children:
         child.parent_id = objective.parent_id
 
-    # check if children need to be change archive status after changing/losing parent
+    # check if children need to be change archive status after losing parent
     await project_utils.archive_objective_including_children(db_session, children)
     await project_utils.unarchive_objective_including_children(db_session, children)
 
@@ -1145,7 +1145,6 @@ async def remove_objective_from_project(
     if not objective:
         raise NotFoundException("Objective not found")
 
-    # link the objective to the project (if already linked nothing happens)
     if objective in project.objectives:
         project.objectives.remove(objective)
 
@@ -1248,6 +1247,12 @@ async def add_objective_to_objective(
     parent_objective_id: str = Parameter(),
     objective_id: str = Parameter(),
 ) -> SuccessResponse:
+    """
+    Ling a child objective to a parent objective
+
+    param parent_objective_id: the ID of the parent objective
+    objective_id: the ID of the child objective
+    """
     parent = await db_session.get(Objective, parent_objective_id)
     child = await db_session.get(Objective, objective_id)
 
@@ -1285,6 +1290,38 @@ async def add_objective_to_objective(
     await db_session.commit()
 
     return SuccessResponse("Objective linked successfully")
+
+
+@delete("/objectives/{parent_objective_id:str}/children/{objective_id:str}")
+async def remove_objective_from_objective(
+    db_session: AsyncSession,
+    parent_objective_id: str = Parameter(),
+    objective_id: str = Parameter(),
+) -> None:
+    """
+    Remove a child objective from a parent objective
+
+    param parent_objective_id: the ID of the parent objective
+    objective_id: the ID of the child objective
+    """
+
+    parent = await db_session.get(Objective, parent_objective_id)
+    child = await db_session.get(Objective, objective_id)
+
+    if not parent or not child:
+        raise NotFoundException("Objective not found")
+
+    if child.parent_id != parent.id:
+        raise ClientException(
+            "The given parent is not the actual parent of this objective"
+        )
+
+    child.parent_id = None
+
+    # check if child need to be change archive status after losing parent
+    await project_utils.archive_objective_including_children(db_session, [child])
+
+    await db_session.commit()
 
 
 @patch("projects/{project_id:str}/archive")
@@ -1455,6 +1492,7 @@ authenticated_router = Router(
         change_user_role,
         get_user_role,
         add_objective_to_objective,
+        remove_objective_from_objective,
         change_password,
         reset_password,
         totp_setup,
