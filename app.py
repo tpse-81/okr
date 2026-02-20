@@ -150,6 +150,8 @@ async def get_dashboard(
     else:
         projects: list[Project] = list(await db_session.scalars(select(Project)))
 
+    projects = [p for p in projects if not p.is_archived]
+
     projects_with_info = []
     for project in projects:
         objectives = await project_utils.get_objectives_for_project(
@@ -1486,6 +1488,35 @@ async def get_archived_objectives(db_session: AsyncSession) -> list[Objective]:
     return result.scalars().all()
 
 
+@get("/key_results/archived", return_dto=KeyResultReadDTO)
+async def get_archived_key_results(db_session: AsyncSession) -> list[KeyResult]:
+    """
+    KeyResults are archived if their parent Objective is archived
+    """
+    stmt = (
+        select(KeyResult)
+        .join(Objective, KeyResult.objective_id == Objective.id)
+        .where(Objective.is_archived.is_(True))
+    )
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
+@get("/tasks/archived", return_dto=TaskReadDTO)
+async def get_archived_tasks(db_session: AsyncSession) -> list[Task]:
+    """
+    Tasks are archived if their KeyResult's parent Objective is archived
+    """
+    stmt = (
+        select(Task)
+        .join(KeyResult, Task.key_result_id == KeyResult.id)
+        .join(Objective, KeyResult.objective_id == Objective.id)
+        .where(Objective.is_archived.is_(True))
+    )
+    result = await db_session.execute(stmt)
+    return result.scalars().all()
+
+
 @patch("/projects/{project_id:str}/deadline/extend")
 async def change_project_deadline(
     db_session: AsyncSession,
@@ -1603,6 +1634,8 @@ authenticated_router = Router(
         promote_user_to_admin,
         get_projects_for_user_id,
         get_objective_children,
+        get_archived_key_results,
+        get_archived_tasks,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
