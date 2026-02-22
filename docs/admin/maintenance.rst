@@ -51,3 +51,19 @@ You can delete an existing user by running
 .. code-block:: sh
 
    ./maintenance_script.py delete-user "username"
+
+Promote user to admin
+~~~~~~~~~~~~~~~~~~~~~
+You can promote existing users to admin by running
+
+.. code-block:: sh
+
+   ./maintenance_script.py promote-user "username"
+
+Demote admin to user
+~~~~~~~~~~~~~~~~~~~~
+You can demote existing admins to become a normal user by running
+
+.. code-block:: sh
+
+   ./maintenance_script.py demote-user "username"
