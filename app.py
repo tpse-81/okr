@@ -627,7 +627,6 @@ class CreateUserRequest:
     password: str
 
 
-# TODO: replace with path "/users" once this route is part of the authentication router group
 @post("/users/create")
 async def create_user(
     db_session: AsyncSession, data: CreateUserRequest, request: Request
@@ -672,6 +671,32 @@ async def create_user(
     await db_session.commit()
 
     return SuccessResponse("successfully created user")
+
+
+@patch("/users/{user_id:str}/promote")
+async def promote_user_to_admin(
+    db_session: AsyncSession, request: Request, user_id: str = Parameter()
+) -> SuccessResponse:
+    """
+    Promote an existing user to become an admin.
+    Only the admin can call this to promote other users.
+    There's no way for an admin to demote a user again, so this should be well-overthought.
+
+    :param user_id: the id of the user to promote
+    :return: a success response if the user was successfully promoted
+    """
+    actor = cast(User, request.user)
+    if not actor.is_admin:
+        raise PermissionDeniedException("only admins can promote other users to admin")
+
+    user = await db_session.get(User, user_id)
+    if not user:
+        raise ClientException("user does not exist")
+
+    user.is_admin = True
+    await db_session.commit()
+
+    return SuccessResponse("successfully promoted user to admin")
 
 
 @post(
@@ -1431,6 +1456,7 @@ authenticated_router = Router(
         webauthn_remove_credentials,
         webauthn_is_configured,
         create_user,
+        promote_user_to_admin,
         get_projects_for_user_id,
     ],
     middleware=[AuthenticationMiddleware],
