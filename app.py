@@ -395,6 +395,9 @@ async def delete_user(db_session: AsyncSession, request: Request, user_id: str) 
     if not (actor.is_admin or actor.id == user.id):
         raise PermissionDeniedException("no permissions to delete user with given ID")
 
+    if user.is_admin and actor.id != user.id:
+        raise PermissionDeniedException("admins may not reset the password of other admins")
+
     await db_session.delete(user)
     await db_session.commit()
 

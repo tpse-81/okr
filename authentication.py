@@ -353,6 +353,9 @@ async def reset_password(
     if not user:
         raise NotFoundException("User not found")
 
+    if user.is_admin and actor.id != user.id:
+        raise PermissionDeniedException("admins may not reset the password of other admins")
+
     actor = request.user
 
     # Only the admin or the user can change the password
