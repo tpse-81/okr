@@ -3,6 +3,7 @@ from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
     HTTP_200_OK,
+    HTTP_403_FORBIDDEN,
 )
 
 from app import app
@@ -129,3 +130,53 @@ def test_reset_password(client: TestClient):
     assert response.status_code == HTTP_200_OK
 
     login(client, username="reset-test", password="newpassword")
+
+
+def test_promote_user(client: TestClient):
+    u = create_user(
+        client, name="promote-test", email="promote@user.com", password="foobar"
+    )
+    # promote user to admin
+    response = client.patch(f"/users/{u}/promote")
+    assert response.status_code == HTTP_200_OK
+
+    # check if the user is now an admin
+    response = client.post(
+        "/login",
+        json={
+            "name": "promote-test",
+            "password": "foobar",
+            "two_fa_code": None,
+        },
+    )
+    assert response.status_code == HTTP_201_CREATED
+    assert response.json()["is_admin"]
+
+
+def test_promote_user_without_permissions(client: TestClient):
+    create_user(
+        client, name="non-admin-user", email="promote@user2.com", password="foobar"
+    )
+
+    u = create_user(
+        client, name="promote-fail-test", email="promote@user1.com", password="foobar"
+    )
+
+    # promote user to admin without being an admin
+    response = client.patch(
+        f"/users/{u}/promote",
+        cookies={"token": login(client, "non-admin-user", "foobar")},
+    )
+    assert response.status_code == HTTP_403_FORBIDDEN
+
+    # make sure the user is not an admin!
+    response = client.post(
+        "/login",
+        json={
+            "name": "promote-fail-test",
+            "password": "foobar",
+            "two_fa_code": None,
+        },
+    )
+    assert response.status_code == HTTP_201_CREATED
+    assert not response.json()["is_admin"]
