@@ -69,6 +69,22 @@ def reset_password(db_session: Session, username: str, new_password: str):
     db_session.commit()
 
 
+def set_user_admin_state(db_session: Session, username: str, is_admin: bool):
+    """
+    Promote a user to become admin or demote an admin to become a normal user.
+
+    :param is_admin: whether the user should be promoted to admin (True) or demoted to user (False)
+    """
+    stmt = select(User).where(func.lower(User.name) == func.lower(username))
+    user = db_session.scalars(stmt).one_or_none()
+    if user is None:
+        raise ValueError("user doesn't exist")
+
+    user.is_admin = is_admin
+
+    db_session.commit()
+
+
 if __name__ == "__main__":
     # the script doesn't run async, so the aiosqlite extension is not needed
     db_connection_url = config.database_url.replace("+aiosqlite", "")
@@ -82,6 +98,8 @@ Usage:
 - `./maintenance_script.py add-user "<username>" "<email>" "<password>"`
 - `./maintenance_script.py delete-user "<username>"
 - `./maintenance_script.py reset-password "<username>" "<password>"`
+- `./maintenance_script.py promote-user "<username>"
+- `./maintenance_script.py demote-user "<username>"
 """.strip()
         )
         sys.exit(0)
@@ -101,6 +119,12 @@ Usage:
             case "delete-user":
                 assert len(args) == 1, f"expected to get 1 argument, got {len(args)}"
                 delete_user(db_session, *args)
+            case "promote-user":
+                assert len(args) == 1, f"expected to get 1 argument, got {len(args)}"
+                set_user_admin_state(db_session, args[0], True)
+            case "demote-user":
+                assert len(args) == 1, f"expected to get 1 argument, got {len(args)}"
+                set_user_admin_state(db_session, args[0], False)
             case "hash-password":
                 assert len(args) == 1, f"expected to get 1 argument, got {len(args)}"
                 print(hash_password(*args))
