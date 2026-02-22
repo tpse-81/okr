@@ -101,7 +101,11 @@ def test_update_task(auth_client):
 
     response = auth_client.patch(
         f"/tasks/{task_id}",
-        json={"name": "newtitle", "description": "newdescription", "task_state": "done"},
+        json={
+            "name": "newtitle",
+            "description": "newdescription",
+            "task_state": "done",
+        },
     )
     assert response.status_code == HTTP_200_OK
 
