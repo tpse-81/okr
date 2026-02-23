@@ -31,6 +31,7 @@ def create_user(db_session: Session, username: str, email: str, password: str):
         password_hash=password_hash,
         two_fa_secret=None,
         is_admin=False,
+        must_change_password=True,
     )
 
     db_session.add(user)
