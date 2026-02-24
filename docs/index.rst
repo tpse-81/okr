@@ -16,4 +16,5 @@ To get a live preview while editing, run ``sphinx-autobuild docs _build/html``.
    :caption: Contents:
 
    admin/index
+   user/index
    Python source code documentation <api/modules>
