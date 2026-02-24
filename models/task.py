@@ -26,8 +26,10 @@ class Task(base.UUIDBase):
     __tablename__ = "tasks"
     # Primary Key
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    # Description of the Task
-    description: Mapped[str]
+    # Short title of the task (like Objective.name)
+    name: Mapped[str]
+    # Longer description (like Objective.description)
+    description: Mapped[str] = mapped_column(default="", nullable=False)
     # Status: for example "open", "planned", "in_progress", "done" or "cancelled"
     task_state: Mapped[TaskState] = mapped_column(SAEnum(TaskState, name="task_state"))
     # Key Result connection

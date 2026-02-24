@@ -427,6 +427,7 @@ async def create_task_for_key_result(
 
     task = Task(
         id=task_id,
+        name=data.name,
         description=data.description,
         task_state=data.task_state,
         key_result_id=key_result_id,
@@ -463,6 +464,7 @@ async def update_task(
     if not await has_task_write_permissions(db_session, request.user, task_id):
         raise PermissionDeniedException("no permissions to modify this task")
 
+    task.name = data.name
     task.description = data.description
     task.task_state = data.task_state
 
