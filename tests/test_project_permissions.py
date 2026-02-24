@@ -101,7 +101,11 @@ def test_task_write_permissions(auth_client: TestClient[Litestar]):
     # user u1 is part of the project, so they should be allowed to modify the task
     response = auth_client.patch(
         f"/tasks/{task_id}",
-        json={"name": "newtitle", "description": "newdescription", "task_state": "done"},
+        json={
+            "name": "newtitle",
+            "description": "newdescription",
+            "task_state": "done",
+        },
         cookies={"token": u1_token},
     )
     assert response.status_code == HTTP_200_OK
