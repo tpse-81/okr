@@ -79,7 +79,6 @@ def create_user(client, name=None, email=None, password=None):
             "name": name,
             "email": email,
             "password": password or "testpassword123",
-
         },
         cookies=admin_cookies,
     )
