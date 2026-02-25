@@ -1,11 +1,7 @@
 from litestar.testing import TestClient
 import uuid
 
-from litestar.status_codes import (
-    HTTP_201_CREATED,
-    HTTP_200_OK,
-)
-
+from litestar.status_codes import HTTP_201_CREATED, HTTP_200_OK
 from app import app
 
 app.debug = True
