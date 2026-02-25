@@ -3,9 +3,8 @@ import uuid
 
 from litestar.status_codes import (
     HTTP_201_CREATED,
-    HTTP_200_OK,
+    HTTP_200_OK
 )
-
 from app import app
 
 app.debug = True
@@ -63,6 +62,7 @@ def create_task(client, key_result_id):
     return task.json()[-1].get("id")
 
 
+<<<<<<< HEAD
 def login(client: TestClient, username, password) -> str:
     response = client.post("/login", json={"name": username, "password": password})
     assert response.status_code == HTTP_201_CREATED
@@ -78,15 +78,34 @@ def create_user(client, name=None, email=None, password=None):
         name = f"test-user-{uuid.uuid4()}"
     email = email or f"{name.lower()}@test.com"
     user = client.post(
+=======
+def create_user(client, name="name", email=None, password="testpassword123"):
+    email = email or f"{name.lower()}@test.com"
+
+    resp = client.post(
+>>>>>>> b22880a (added some changes to fix errors)
         "/users/create",
         json={
             "name": name,
             "email": email,
+<<<<<<< HEAD
             "password": password or "testpassword123",
+=======
+            "password": password,
+>>>>>>> b22880a (added some changes to fix errors)
         },
         cookies=admin_cookies,
     )
+<<<<<<< HEAD
     assert user.status_code == HTTP_201_CREATED
     user = client.get("/users", cookies=admin_cookies)
     assert user.status_code == HTTP_200_OK
     return user.json()[-1]["id"]
+=======
+    assert resp.status_code == HTTP_201_CREATED
+
+    users = client.get("/users")
+    assert users.status_code == HTTP_200_OK
+    return users.json()[-1]["id"]
+
+>>>>>>> b22880a (added some changes to fix errors)
