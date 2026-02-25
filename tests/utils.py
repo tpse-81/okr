@@ -1,10 +1,7 @@
 from litestar.testing import TestClient
 import uuid
 
-from litestar.status_codes import (
-    HTTP_201_CREATED,
-    HTTP_200_OK
-)
+from litestar.status_codes import HTTP_201_CREATED, HTTP_200_OK
 from app import app
 
 app.debug = True
@@ -90,4 +87,3 @@ def create_user(client, name=None, email=None, password=None):
     user = client.get("/users", cookies=admin_cookies)
     assert user.status_code == HTTP_200_OK
     return user.json()[-1]["id"]
-
