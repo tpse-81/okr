@@ -5,16 +5,9 @@ import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 
 from app import app
-from tests.utils import create_user
+from tests.utils import create_user, login
 
 app.debug = True
-
-
-def _login(client, email: str, password: str, two_fa_code: str | None):
-    return client.post(
-        "/login",
-        json={"email": email, "password": password, "two_fa_code": two_fa_code},
-    )
 
 
 @pytest.fixture()
@@ -27,7 +20,7 @@ def totp_enabled_user(client):
     user_id = create_user(client, name=name, email=email, password=password)
 
     # first login (no 2FA yet) to get token
-    login_resp = _login(client, email=email, password=password, two_fa_code=None)
+    login_resp = login(client, email=email, password=password)
     assert login_resp.status_code == HTTP_201_CREATED
     jwt_token = login_resp.json().get("jwt_token") or login_resp.cookies.get("token")
     assert jwt_token, "No JWT token returned (neither JSON nor cookie)"
@@ -68,18 +61,17 @@ def totp_enabled_user(client):
 
 
 def test_enable_totp_requires_code_on_login(client, totp_enabled_user):
-    resp = _login(
+    resp = login(
         client,
         email=totp_enabled_user["email"],
         password=totp_enabled_user["password"],
-        two_fa_code=None,
     )
     assert resp.status_code == HTTP_400_BAD_REQUEST
     assert resp.json()["detail"] == "2FA code required"
 
 
 def test_login_with_totp(client, totp_enabled_user):
-    resp = _login(
+    resp = login(
         client,
         email=totp_enabled_user["email"],
         password=totp_enabled_user["password"],
@@ -98,11 +90,10 @@ def test_disable_totp_allows_login_without_code(client, totp_enabled_user):
     assert disable_resp.status_code == HTTP_200_OK
     assert disable_resp.json()["message"] == "TOTP 2FA disabled"
 
-    resp = _login(
+    resp = login(
         client,
         email=totp_enabled_user["email"],
         password=totp_enabled_user["password"],
-        two_fa_code=None,
     )
     assert resp.status_code == HTTP_201_CREATED
     assert resp.json().get("jwt_token") or resp.cookies.get("token")
