@@ -77,7 +77,7 @@ from dto.read_dto import (
 import project_utils
 from helpers import is_valid_email
 
-from sqlalchemy import select, exists, and_, delete as sa_delete
+from sqlalchemy import select, exists, and_, func, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from advanced_alchemy.extensions.litestar import (
@@ -1127,12 +1127,14 @@ async def remove_objective_from_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
     objective_id: str = Parameter(),
+    confirm_orphan: bool = Parameter(default=False, query="confirm_orphan"),
 ) -> None:
     """
     Remove an objective from a project
 
     param project_id: the ID of the project
     param objective_id: the ID of the objective
+    param confirm_orphan: if true, allows unlinking even if this is the last project associated  with the objective
     """
 
     # check if project exists
@@ -1145,11 +1147,26 @@ async def remove_objective_from_project(
     if not objective:
         raise NotFoundException("Objective not found")
 
+    # check if unlinking would remove last project link
+    if not confirm_orphan:
+        stmt = (
+            select(func.count())
+            .select_from(project_objective)
+            .where(project_objective.c.objective_id == objective_id)
+        )
+
+        link_count: int = await db_session.scalar(stmt) or 0
+
+        # if objective currently only has 1 link and confirm_orphan not set -> Warning
+        if link_count == 1:
+            raise ClientException(
+                status_code=409,
+                detail="Unlink would remove last project for objective. Set confirm_orphan=true to proceed.",
+            )
+
     if objective in project.objectives:
         project.objectives.remove(objective)
 
-    # it's possible that the objective is orphaned now - i.e. it has no related projects
-    # in this case the objective has to become archived automatically
     await project_utils.archive_objective_including_children(db_session, [objective])
 
     await db_session.commit()
