@@ -4,6 +4,7 @@ from litestar.status_codes import (
     HTTP_404_NOT_FOUND,
     HTTP_400_BAD_REQUEST,
     HTTP_204_NO_CONTENT,
+    HTTP_409_CONFLICT,
 )
 
 from utils import (
@@ -55,6 +56,10 @@ def test_link_objectives_to_project(auth_client):
 
     # remove link between objective and project
     response = auth_client.delete(f"/projects/{p}/objectives/{o}")
+    assert response.status_code == HTTP_409_CONFLICT
+
+    # confirm orphan unlink
+    response = auth_client.delete(f"/projects/{p}/objectives/{o}?confirm_orphan=true")
     assert response.status_code == HTTP_204_NO_CONTENT
 
     response = auth_client.get(f"/projects/{p}/objectives")
