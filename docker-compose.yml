@@ -6,8 +6,8 @@ services:
       - 3000:3000
     environment:
       # for production use, change this here to point to the public URL
-      # of your backend server, e.g. "https://okr-api.example.com"
-      - PUBLIC_API_URL="http://localhost:8000"
+      # of your backend server, e.g. https://okr-api.example.com
+      - "PUBLIC_API_URL=http://localhost:8000"
     restart: unless-stopped
     network_mode: bridge
 
