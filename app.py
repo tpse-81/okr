@@ -79,6 +79,7 @@ from routes.tasks import (
     get_tasks_from_key_result,
     update_task,
     delete_task,
+    get_tasks_for_user,
 )
 
 from routes.projects import (
@@ -267,6 +268,7 @@ authenticated_router = Router(
         create_task_for_key_result,
         get_tasks,
         get_task,
+        get_tasks_for_user,
         get_tasks_from_key_result,
         update_task,
         delete_task,

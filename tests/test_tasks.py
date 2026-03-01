@@ -3,7 +3,13 @@ import uuid
 from litestar import Litestar
 from litestar.testing import TestClient
 
-from utils import create_objective, create_project, create_key_result, create_task
+from utils import (
+    create_objective,
+    create_project,
+    create_key_result,
+    create_task,
+    create_user,
+)
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -44,6 +50,23 @@ def test_task(auth_client: TestClient[Litestar]):
     response = auth_client.get(f"/tasks/{task['id']}")
     assert response.status_code == HTTP_200_OK
     assert response.json() == task
+
+
+def test_tasks_for_user(auth_client: TestClient[Litestar]):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id)
+    create_task(auth_client, key_result_id)
+
+    user_id = auth_client.get("/me").json()["id"]
+    tasks_for_user = auth_client.get(f"/users/{user_id}/tasks")
+    assert tasks_for_user.status_code == HTTP_200_OK
+    assert len(tasks_for_user.json()) != 0
+
+    other_user_id = create_user(auth_client)
+    tasks_for_other_user = auth_client.get(f"/users/{other_user_id}/tasks")
+    assert tasks_for_other_user.status_code == HTTP_200_OK
+    assert len(tasks_for_other_user.json()) == 0
 
 
 def test_empty_task(auth_client):
