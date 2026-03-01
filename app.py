@@ -111,8 +111,6 @@ from dto.read_dto import (
     ProjectReadDTO,
 )
 
-import project_utils
-
 from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.extensions.litestar import (
@@ -143,6 +141,8 @@ async def main_page() -> str:
 # https://github.com/orgs/litestar-org/discussions/3586
 ProjectTypeVar = TypeVar("ProjectTypeVar")
 ObjectiveTypeVar = TypeVar("ObjectiveTypeVar")
+ProjectContainerTypeVar = TypeVar("ProjectContainerTypeVar")
+TaskTypeVar = TypeVar("TaskTypeVar")
 
 
 @dataclass
@@ -152,42 +152,53 @@ class ProjectContainer(Generic[ProjectTypeVar, ObjectiveTypeVar]):
     progress: float
 
 
+@dataclass
+class DashboardResponse:
+    projects: list[ProjectContainerTypeVar]
+    tasks: list[TaskTypeVar]
+
+
 @get("/dashboard", return_dto=ProjectReadDTO)
 async def get_dashboard(
     db_session: AsyncSession, user_id: str | None = Parameter()
-) -> list[ProjectContainer]:
+) -> DashboardResponse:
     if user_id:
         projects = await get_projects_for_user(db_session, uuid.UUID(user_id))
     else:
         projects: list[Project] = list(await db_session.scalars(select(Project)))
 
+    # don't show any archived projects in dashboard
     projects = [p for p in projects if not p.is_archived]
 
     projects_with_info = []
+    tasks = []
     for project in projects:
-        objectives = await project_utils.get_objectives_for_project(
-            db_session, str(project.id)
-        )
-
         # build average progress across all objectives
         progress_per_objective = [
             await calculate_objective_progress(db_session, objective.id)
-            for objective in objectives
+            for objective in project.objectives
         ]
 
-        if objectives:
-            progress = sum(progress_per_objective) / len(objectives)
+        if project.objectives:
+            progress = sum(progress_per_objective) / len(project.objectives)
         else:
             progress = 1.0
 
         project_container = ProjectContainer(
             project=project,
-            objectives=objectives,
+            objectives=project.objectives,
             progress=progress,
         )
         projects_with_info.append(project_container)
 
-    return projects_with_info
+        key_results = [
+            key_result
+            for objective in project.objectives
+            for key_result in objective.key_results
+        ]
+        tasks.extend(task for key_result in key_results for task in key_result.tasks)
+
+    return DashboardResponse(projects_with_info, tasks)
 
 
 # during test execution, data is written into memory and not

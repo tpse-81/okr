@@ -1,6 +1,12 @@
 from litestar.status_codes import HTTP_200_OK
 from litestar.testing import TestClient
-from utils import create_project, create_objective, create_key_result, create_user
+from utils import (
+    create_project,
+    create_objective,
+    create_key_result,
+    create_user,
+    create_task,
+)
 
 
 def test_dashboard(auth_client: TestClient):
@@ -27,13 +33,21 @@ def test_dashboard(auth_client: TestClient):
 
     o2 = create_objective(auth_client, p)
     # key result with 0% progress
-    _k3 = create_key_result(auth_client, o2, start_value=0, end_value=1)
+    k3 = create_key_result(auth_client, o2, start_value=0, end_value=1)
+    t1 = create_task(auth_client, k3)
+    t2 = create_task(auth_client, k3)
 
     response = auth_client.get("/dashboard", params={"user_id": user_id})
     dashboard = response.json()
-    assert len(dashboard) == 1
+    assert len(dashboard["projects"]) == 1
 
-    project = dashboard[-1]
+    # check if the dashboard properly returned a list of all tasks
+    assert len(dashboard["tasks"]) != 0
+    task_ids = [task["id"] for task in dashboard["tasks"]]
+    assert t1 in task_ids
+    assert t2 in task_ids
+
+    project = dashboard["projects"][-1]
     assert len(project["objectives"]) == 2
     # o1: 33.333%, o2: 0% -> avg: 16.666666
     assert project["progress"] == 1.0 / 6.0
@@ -50,7 +64,7 @@ def test_dashboard_no_progress(auth_client: TestClient):
     response = auth_client.get("/dashboard")
     dashboard = response.json()
 
-    project = dashboard[-1]
+    project = dashboard["projects"][-1]
     assert len(project["objectives"]) == 1
     assert project["progress"] == 1.0
 
@@ -64,4 +78,4 @@ def test_dashboard_user_with_no_projects(auth_client: TestClient):
     u2 = create_user(auth_client)
     response = auth_client.get("/dashboard", params={"user_id": u2})
     dashboard = response.json()
-    assert len(dashboard) == 0
+    assert len(dashboard["projects"]) == 0
