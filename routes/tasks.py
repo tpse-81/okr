@@ -18,6 +18,9 @@ from dto.write_dto import (
 )
 from models.task import Task
 from models.key_result import KeyResult
+from models.project import Project
+from models.user_project import UserProject
+from models.project_objective import project_objective
 from models.objective import Objective
 
 
@@ -74,6 +77,35 @@ async def create_task_for_key_result(
     await db_session.commit()
 
     return SuccessResponse("successfully created task")
+
+
+@get("/users/{user_id:str}/tasks", return_dto=TaskReadDTO)
+async def get_tasks_for_user(
+    db_session: AsyncSession,
+    user_id: str = Parameter(),
+) -> list[Task]:
+    """
+    Get all tasks for a given user.
+
+    Tasks are retrieved by traversing the chain:
+    UserProject -> Project -> project_objective -> Objective -> KeyResult -> Task
+
+    param user_id: the ID of the user whose tasks are returned
+    return: a JSON list of tasks belonging to projects the user participates in
+    """
+    stmt = (
+        select(Task)
+        .join(KeyResult, Task.key_result_id == KeyResult.id)
+        .join(Objective, KeyResult.objective_id == Objective.id)
+        .join(project_objective, project_objective.c.objective_id == Objective.id)
+        .join(Project, project_objective.c.project_id == Project.id)
+        .join(UserProject, UserProject.project_id == Project.id)
+        .where(UserProject.user_id == user_id)
+        .distinct()
+    )
+
+    result = await db_session.execute(stmt)
+    return list(result.scalars().all())
 
 
 @get("/tasks", return_dto=TaskReadDTO)
