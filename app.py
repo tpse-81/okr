@@ -841,11 +841,12 @@ async def update_key_result_current_value(
     await db_session.refresh(key_result)
     return key_result
 
+
 @get("/projects/{project_id:str}/permissions")
 async def get_project_permissions(
-        db_session: AsyncSession,
-        request: Request,
-        project_id: str = Parameter(),
+    db_session: AsyncSession,
+    request: Request,
+    project_id: str = Parameter(),
 ) -> dict[str, bool]:
     return {
         "can_lead": await has_project_lead_permissions(
@@ -856,11 +857,12 @@ async def get_project_permissions(
         ),
     }
 
+
 @get("/objectives/{objective_id:str}/permissions")
 async def get_objective_permissions(
-        db_session: AsyncSession,
-        request: Request,
-        objective_id: str = Parameter(),
+    db_session: AsyncSession,
+    request: Request,
+    objective_id: str = Parameter(),
 ) -> dict[str, bool]:
     return {
         "can_write": await has_objective_write_permissions(
@@ -868,11 +870,12 @@ async def get_objective_permissions(
         ),
     }
 
+
 @get("/key_results/{key_result_id:str}/permissions")
 async def get_key_result_permissions(
-        db_session: AsyncSession,
-        request: Request,
-        key_result_id: str = Parameter(),
+    db_session: AsyncSession,
+    request: Request,
+    key_result_id: str = Parameter(),
 ) -> dict[str, bool]:
     return {
         "can_write": await has_key_result_write_permissions(
@@ -880,17 +883,19 @@ async def get_key_result_permissions(
         ),
     }
 
+
 @get("/tasks/{task_id:str}/permissions")
 async def get_task_permissions(
-        db_session: AsyncSession,
-        request: Request,
-        task_id: str = Parameter(),
+    db_session: AsyncSession,
+    request: Request,
+    task_id: str = Parameter(),
 ) -> dict[str, bool]:
     return {
         "can_write": await has_task_write_permissions(
             db_session, request.user, task_id
         ),
     }
+
 
 @post("/projects/{project_id:str}/objectives", dto=ObjectiveWriteDTO, return_dto=None)
 async def create_objective(
