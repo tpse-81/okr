@@ -352,3 +352,25 @@ async def has_task_write_permissions(
         raise ClientException("task does not exist")
 
     return await has_key_result_write_permissions(db_session, user, task.key_result_id)
+
+
+async def project_exists(db_session: AsyncSession, project_id: str) -> bool:
+    result = await db_session.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    return project is not None
+
+
+async def objective_exists(db_session: AsyncSession, objective_id: str) -> bool:
+    result = await db_session.execute(
+        select(Objective).where(Objective.id == objective_id)
+    )
+    objective = result.scalar_one_or_none()
+    return objective is not None
+
+
+async def key_result_exists(db_session: AsyncSession, key_result_id: str) -> bool:
+    result = await db_session.execute(
+        select(KeyResult).where(KeyResult.id == key_result_id)
+    )
+    key_result = result.scalar_one_or_none()
+    return key_result is not None
