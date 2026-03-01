@@ -1149,6 +1149,7 @@ async def remove_user_from_project(
 @post("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def add_objective_to_project(
     db_session: AsyncSession,
+    request: Request,
     project_id: str = Parameter(),
     objective_id: str = Parameter(),
 ) -> SuccessResponse:
@@ -1168,6 +1169,11 @@ async def add_objective_to_project(
     objective = await db_session.get(Objective, objective_id)
     if not objective:
         raise NotFoundException("Objective not found")
+
+    if not has_weak_project_permissions(db_session, request.user, project_id):
+        raise PermissionDeniedException(
+            "no permissions to modify linked objectives for this project"
+        )
 
     # link the objective to the project (if already linked nothing happens)
     if objective not in project.objectives:
@@ -1189,6 +1195,7 @@ async def add_objective_to_project(
 @delete("/projects/{project_id:str}/objectives/{objective_id:str}")
 async def remove_objective_from_project(
     db_session: AsyncSession,
+    request: Request,
     project_id: str = Parameter(),
     objective_id: str = Parameter(),
     confirm_orphan: bool = Parameter(default=False, query="confirm_orphan"),
@@ -1210,6 +1217,11 @@ async def remove_objective_from_project(
     objective = await db_session.get(Objective, objective_id)
     if not objective:
         raise NotFoundException("Objective not found")
+
+    if not has_weak_project_permissions(db_session, request.user, project_id):
+        raise PermissionDeniedException(
+            "no permissions to modify linked objectives for this project"
+        )
 
     # check if unlinking would remove last project link
     if not confirm_orphan:
@@ -1325,6 +1337,7 @@ async def get_user_role(
 @post("/objectives/{parent_objective_id:str}/children/{objective_id:str}")
 async def add_objective_to_objective(
     db_session: AsyncSession,
+    request: Request,
     parent_objective_id: str = Parameter(),
     objective_id: str = Parameter(),
 ) -> SuccessResponse:
@@ -1339,6 +1352,13 @@ async def add_objective_to_objective(
 
     if not parent or not child:
         raise NotFoundException("Objective not found")
+
+    if not has_objective_write_permissions(
+        db_session, request.user, parent_objective_id
+    ):
+        raise PermissionDeniedException(
+            "no permissions to add child objectives to this parent objective"
+        )
 
     current = parent
     while current.parent_id is not None:
@@ -1376,6 +1396,7 @@ async def add_objective_to_objective(
 @delete("/objectives/{parent_objective_id:str}/children/{objective_id:str}")
 async def remove_objective_from_objective(
     db_session: AsyncSession,
+    request: Request,
     parent_objective_id: str = Parameter(),
     objective_id: str = Parameter(),
 ) -> None:
@@ -1391,6 +1412,13 @@ async def remove_objective_from_objective(
 
     if not parent or not child:
         raise NotFoundException("Objective not found")
+
+    if not has_objective_write_permissions(
+        db_session, request.user, parent_objective_id
+    ):
+        raise PermissionDeniedException(
+            "no permissions to remove child objectives from this parent objective"
+        )
 
     if child.parent_id != parent.id:
         raise ClientException(
