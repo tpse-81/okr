@@ -21,6 +21,10 @@ services:
       # https://tpse-81.github.io/okr/api/config.html for information about the
       # supported configuration options
       - ./config.toml:/app/config.toml:ro # point this to your configuration file
-      - ./db.sqlite:/app/db.sqlite # point this to the database file path you configured in `config.toml`
+
+      # point this to the database file path you configured in `config.toml`
+      # in this example, all data will be stored in the `data` folder, so please make
+      # sure to make backups of this folder if required!
+      - ./data:/app/data
     restart: unless-stopped
     network_mode: bridge

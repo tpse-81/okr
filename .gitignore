@@ -3,6 +3,7 @@
 
 /okr.sqlite
 /db.sqlite
+/data/
 
 /uv.lock
 /.idea/

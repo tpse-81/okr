@@ -1,8 +1,8 @@
 # See [config.py] for detailed documentation on the possible values!
 
 [okr]
-# path to the database file - here: ./db.sqlite is used (gets automatically created)
-database_url = "sqlite+aiosqlite:///db.sqlite"
+# path to the database file - here: ./data/db.sqlite is used (file gets automatically created)
+database_url = "sqlite+aiosqlite:///data/db.sqlite"
 # list of websites that may access the OKR's public API
 # at minimum, this has to contain the URL of the hosted frontend app
 cors_allow_origins = ["https://example.com", "http://localhost:8000"]
