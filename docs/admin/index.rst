@@ -7,3 +7,4 @@ Administrator documentation
    installation
    configuration
    maintenance
+   database_schema
