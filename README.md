@@ -10,6 +10,9 @@ Frontend repository with a more in depth overview: https://github.com/tpse-81/ok
 ## Developer API Documentation
 The documentation for the source code is hosted at <https://tpse-81.github.io/okr/>.
 
+## REST API Documentation
+Once you started the app, you can find a list of all API routes and their required parameters at `/docs`.
+
 ## Development
 ### Install dependencies
 - `pip install .`
