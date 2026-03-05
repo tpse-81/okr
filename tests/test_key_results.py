@@ -141,6 +141,16 @@ def test_update_key_result(auth_client):
     assert key_result["end_value"] == 11
 
 
+def test_key_result_get_related_objective(auth_client: TestClient):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id)
+
+    response = auth_client.get(f"/key_results/{key_result_id}/objective")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["id"] == objective_id
+
+
 def test_key_result_check_unauthorized(auth_client):
     project_id = create_project(auth_client)
     objective_id = create_objective(auth_client, project_id)

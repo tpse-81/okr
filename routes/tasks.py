@@ -24,9 +24,7 @@ from models.project_objective import project_objective
 from models.objective import Objective
 
 
-from dto.read_dto import (
-    TaskReadDTO,
-)
+from dto.read_dto import TaskReadDTO, KeyResultReadDTO
 
 import project_utils
 
@@ -148,6 +146,27 @@ async def get_task(db_session: AsyncSession, task_id: str) -> Task:
         raise NotFoundException("task not found")
 
     return task
+
+
+@get("/tasks/{task_id:str}/key_result", return_dto=KeyResultReadDTO)
+async def get_related_key_result_for_task(
+    db_session: AsyncSession, task_id: str
+) -> KeyResult:
+    """
+    Get the key result that belongs to the task with the given ID.
+
+    param task_id: the ID of the task to search for
+    """
+    stmt = (
+        select(KeyResult)
+        .join(Task, Task.key_result_id == KeyResult.id)
+        .where(Task.id == task_id)
+    )
+    key_result = (await db_session.execute(stmt)).scalar_one_or_none()
+    if key_result is None:
+        raise NotFoundException("key result or parent objective not found")
+
+    return key_result
 
 
 @get("/key_results/{key_result_id:str}/tasks", return_dto=TaskReadDTO)
