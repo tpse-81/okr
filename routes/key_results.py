@@ -22,9 +22,7 @@ from models.key_result import KeyResult
 from models.objective import Objective
 
 
-from dto.read_dto import (
-    KeyResultReadDTO,
-)
+from dto.read_dto import KeyResultReadDTO, ObjectiveReadDTO
 
 import project_utils
 
@@ -93,6 +91,27 @@ async def get_key_result(db_session: AsyncSession, key_result_id: str) -> KeyRes
         raise NotFoundException("key_result not found")
 
     return key_result
+
+
+@get("/key_results/{key_result_id:str}/objective", return_dto=ObjectiveReadDTO)
+async def get_related_objective_for_key_result(
+    db_session: AsyncSession, key_result_id: str
+) -> Objective:
+    """
+    Get the objective that belongs to the key result with the given ID.
+
+    param key_result_id: the ID of the key result to search for
+    """
+    stmt = (
+        select(Objective)
+        .join(KeyResult, KeyResult.objective_id == Objective.id)
+        .where(KeyResult.id == key_result_id)
+    )
+    objective = (await db_session.execute(stmt)).scalar_one_or_none()
+    if objective is None:
+        raise NotFoundException("key result or parent objective not found")
+
+    return objective
 
 
 @get("/key_results", return_dto=KeyResultReadDTO)

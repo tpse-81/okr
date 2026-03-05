@@ -138,3 +138,14 @@ def test_update_task(auth_client):
     assert task["name"] == "newtitle"
     assert task["description"] == "newdescription"
     assert task["task_state"] == "done"
+
+
+def test_task_get_related_key_result(auth_client: TestClient):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+    key_result_id = create_key_result(auth_client, objective_id)
+    task_id = create_task(auth_client, key_result_id)
+
+    response = auth_client.get(f"/tasks/{task_id}/key_result")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["id"] == key_result_id

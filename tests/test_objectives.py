@@ -66,6 +66,16 @@ def test_update_objective(auth_client):
     assert objective["description"] == "newdescription"
 
 
+def test_objective_get_related_projects(auth_client: TestClient):
+    project_id = create_project(auth_client)
+    objective_id = create_objective(auth_client, project_id)
+
+    response = auth_client.get(f"/objectives/{objective_id}/projects")
+    assert response.status_code == HTTP_200_OK
+    assert len(response.json()) == 1
+    assert response.json()[0]["id"] == project_id
+
+
 def test_objective_check_unauthorized(auth_client):
     project_id = create_project(auth_client)
     with TestClient(app=app) as client:

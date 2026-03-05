@@ -19,11 +19,10 @@ from dto.write_dto import (
 )
 from models.project import Project
 from models.objective import Objective
+from models.project_objective import project_objective
 
 
-from dto.read_dto import (
-    ObjectiveReadDTO,
-)
+from dto.read_dto import ObjectiveReadDTO, ProjectReadDTO
 
 import project_utils
 
@@ -193,7 +192,7 @@ async def get_objectives_for_project(
     db_session: AsyncSession,
     project_id: str = Parameter(),
 ) -> list[Objective]:
-    """ "
+    """
     Query objectives by project ID.
 
     param project_id: the ID of the project for which to retrieve objectives
@@ -201,6 +200,26 @@ async def get_objectives_for_project(
     """
 
     return await project_utils.get_objectives_for_project(db_session, project_id)
+
+
+@get("/objectives/{objective_id:str}/projects", return_dto=ProjectReadDTO)
+async def get_related_projects_for_objective(
+    db_session: AsyncSession,
+    objective_id: str = Parameter(),
+) -> list[Project]:
+    """
+    Get the projects that belong to the objective with the given ID.
+
+    param objective_id: the ID of the objective to search for
+    """
+
+    stmt = await db_session.scalars(
+        select(Project)
+        .join(project_objective)
+        .where(project_objective.c.objective_id == objective_id)
+    )
+
+    return list(stmt)
 
 
 @patch(

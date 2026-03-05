@@ -56,6 +56,7 @@ from routes.key_results import (
     delete_key_result,
     get_key_results,
     get_archived_key_results,
+    get_related_objective_for_key_result,
 )
 
 from routes.objectives import (
@@ -69,6 +70,7 @@ from routes.objectives import (
     add_objective_to_objective,
     update_objective,
     remove_objective_from_objective,
+    get_related_projects_for_objective,
 )
 
 from routes.tasks import (
@@ -80,6 +82,7 @@ from routes.tasks import (
     update_task,
     delete_task,
     get_tasks_for_user,
+    get_related_key_result_for_task,
 )
 
 from routes.projects import (
@@ -289,6 +292,9 @@ authenticated_router = Router(
         get_task_permissions,
         get_archived_tasks,
         get_archived_key_results,
+        get_related_key_result_for_task,
+        get_related_objective_for_key_result,
+        get_related_projects_for_objective,
     ],
     middleware=[AuthenticationMiddleware],
     tags=["authenticated"],
