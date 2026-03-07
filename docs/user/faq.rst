@@ -45,7 +45,7 @@ Where can I change my password or security settings?
 Open **⋯ (More)** → **Account**.
 There you can usually change your password, manage TOTP, and register passkeys.
 
-Where can I find the API?
+Where can I find the API documentation?
 -------------------------
 
 If your instance exposes the OpenAPI UI, it is usually available at ``/docs``.
