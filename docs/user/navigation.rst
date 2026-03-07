@@ -15,7 +15,7 @@ You will usually find these areas there:
 
 - **Projects**: open one of your projects to work on its objectives, key results, and tasks
 - **Upcoming deadlines**: see which project deadlines are approaching
-- **Your tasks**: check what is currently assigned to you
+- **Your tasks**: check what tasks have to be done in the projects you participate in
 - **Top-right menu**: open account settings or log out
 
 .. figure:: _images/dashboard.png
