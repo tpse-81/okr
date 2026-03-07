@@ -80,11 +80,11 @@ They help translate a measurable result into day-to-day work.
 A task has a description and a state.
 Available task states are:
 
-- ``open``
-- ``planned``
-- ``in_progress``
-- ``done``
-- ``cancelled``
+- Open
+- Planned
+- In progress
+- Done
+- Cancelled
 
 A good working pattern is:
 
