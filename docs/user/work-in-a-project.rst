@@ -30,7 +30,7 @@ Once you created a new project, you automatically become the project's team lead
 Objectives
 ----------
 
-An objective describes what you want to achieve.
+An objective describes an abstract goal that you want to achieve.
 Objectives can also be nested, which means one objective can have child objectives.
 
 In practice, objectives answer the question:
