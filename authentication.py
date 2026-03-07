@@ -1,5 +1,5 @@
+from litestar.openapi import ResponseSpec
 from webauthn_handlers import try_authenticate_user
-from enum import Enum
 from dataclasses import dataclass
 from typing import Annotated, Any, cast
 import typing
@@ -159,15 +159,11 @@ class ResetPasswordRequest:
     new_password: str
 
 
-class TwoFaType(str, Enum):
-    WEBAUTHN = "webauthn"
-    TOTP = "totp"
-
-
 @dataclass
 class TwoFaRequiredResponse:
-    type: TwoFaType
     user_id: str
+    totp_supported: bool
+    webauthn_supported: bool
 
 
 async def get_user_by_name_or_mail(db_session: AsyncSession, query: str) -> User | None:
@@ -194,7 +190,53 @@ async def get_user_by_name_or_mail(db_session: AsyncSession, query: str) -> User
     return user_query.scalar_one_or_none()
 
 
-@post("/login", return_dto=UserReadDTO)
+def _verify_2fa_request(user: User, request: LoginRequest) -> bool:
+    """
+    Check if the user provided either
+    - a valid 2FA TOTP password
+    - a valid Webauthn credential
+
+    If the user doesn't have 2FA set up, this method returns ``True``.
+    If none of the provided 2FA options is correct (or provided), this returns ``False``.
+
+    :param user: the user that wants to authenticate
+    :param request: the data sent by the user to confirm its identity
+    """
+
+    # user doesn't have 2FA set up, so we don't have to check if it's valid
+    if not user.webauthn and not user.two_fa_secret:
+        return True
+
+    # TOTP 2FA: only required if user has a configured secret (and not pending)
+    secret, pending = _parse_totp_secret(user.two_fa_secret)
+    if secret and not pending:
+        code = _normalize_totp_code(request.two_fa_code)
+        if code and verify_totp(secret, code):
+            return True
+
+    # user has Webauthn set up -> needs to be validated as well
+    if user.webauthn and request.webauthn_response:
+        try:
+            try_authenticate_user(
+                str(user.id), user.webauthn, request.webauthn_response
+            )
+            return True
+        except ClientException:
+            pass
+
+    return False
+
+
+@post(
+    "/login",
+    return_dto=UserReadDTO,
+    responses={
+        403: ResponseSpec(
+            data_container=TwoFaRequiredResponse,
+            description="Invalid or no 2FA options provided, although required",
+        )
+    },
+)
 async def login_handler(
     data: Annotated[LoginRequest, Body(title="Login Request")], db_session: AsyncSession
 ) -> Response[User]:
@@ -209,25 +251,17 @@ async def login_handler(
     if user is None or not verify_password(user.password_hash, data.password):
         raise ClientException("invalid username or password")
 
-    # TOTP 2FA: only required if user has a configured secret (and not pending)
-    secret, pending = _parse_totp_secret(user.two_fa_secret)
-    if secret and not pending:
-        code = _normalize_totp_code(data.two_fa_code)
-        if not code:
-            raise PermissionDeniedException(
-                extra=TwoFaRequiredResponse(TwoFaType.TOTP, str(user.id)).__dict__,
-            )
-        if not verify_totp(secret, code):
-            raise ClientException("invalid 2FA code")
-
-    # user has Webauthn set up -> needs to be validated as well
-    if user.webauthn:
-        if not data.webauthn_response:
-            raise PermissionDeniedException(
-                extra=TwoFaRequiredResponse(TwoFaType.WEBAUTHN, str(user.id)).__dict__,
-            )
-
-        try_authenticate_user(str(user.id), user.webauthn, data.webauthn_response)
+    # check if the provided 2FA options match
+    if not _verify_2fa_request(user, data):
+        totp_secret, totp_pending = _parse_totp_secret(user.two_fa_secret)
+        raise PermissionDeniedException(
+            "missing or wrong 2fa options",
+            extra=TwoFaRequiredResponse(
+                user_id=str(user.id),
+                totp_supported=totp_secret is not None and not totp_pending,
+                webauthn_supported=user.webauthn is not None,
+            ).__dict__,
+        )
 
     jwt_token = create_jwt(user, config.jwt_config.validity_duration_hours)
     response = Response(content=user)
