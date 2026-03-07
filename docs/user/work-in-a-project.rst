@@ -25,6 +25,7 @@ To create a project go to projects and create it there.
    :alt: create project
    :width: 900px
 
+Once you created a new project, you automatically become the project's team lead.
 
 Objectives
 ----------
