@@ -29,7 +29,7 @@ class KeyResultReadDTO(SQLAlchemyDTO[KeyResult]):
     DTO used for serializing KeyResult models for read operations (limits output and prevents recursive relationships)
     """
 
-    config = DTOConfig(exclude={"objective_id", "objective", "tasks"})
+    config = DTOConfig(exclude={"objective", "tasks"})
 
 
 class TaskReadDTO(SQLAlchemyDTO[Task]):
