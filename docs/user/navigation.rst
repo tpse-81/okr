@@ -32,7 +32,7 @@ Opening a project
 -----------------
 
 When you open a project, you move from the general overview into the actual OKR workspace.
-A project page typically contains:
+A project page contains:
 
 - the project name
 - members of the project and their roles
