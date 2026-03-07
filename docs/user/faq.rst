@@ -48,4 +48,4 @@ There you can usually change your password, manage TOTP, and register passkeys.
 Where can I find the API documentation?
 -------------------------
 
-If your instance exposes the OpenAPI UI, it is usually available at ``/docs``.
+If your instance's backend exposes the OpenAPI UI, the API documentation is available at ``/docs``.
