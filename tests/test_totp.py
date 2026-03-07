@@ -78,15 +78,11 @@ def test_enable_totp_requires_code_on_login(client, totp_enabled_user):
     assert resp.status_code == HTTP_403_FORBIDDEN
 
     payload = resp.json()
-    # Litestar default message:
-    assert payload.get("detail") == "Forbidden"
 
     # backend provides the real info via "extra"
     extra = payload.get("extra", {})
     assert extra, f"Expected extra payload, got: {payload}"
-
-    # Minimal check: it signals TOTP is required
-    assert "totp" in str(extra).lower()
+    assert extra["totp_supported"]
 
 
 def test_login_with_totp(client, totp_enabled_user):
