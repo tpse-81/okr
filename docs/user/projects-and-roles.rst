@@ -4,23 +4,53 @@ Projects and roles
 Core concepts
 -------------
 
-- A *project* is the container for your OKRs. It has a name, a deadline and a completion flag (done). Projects can also be archived.
-- An *objective* describes what you want to achieve. Objectives can have child objectives (a hierarchy).
-- A *key result* is a measurable outcome with start, current and end value.
-- A *task* is a concrete action item belonging to a key result.
+The OKR tool uses four main building blocks:
+
+- A **project** is the container for your OKRs. It has a name, a deadline, and a completion state.
+- An **objective** describes what you want to achieve.
+- A **key result** is a measurable outcome with start, current, and end value.
+- A **task** is a concrete action item that belongs to a key result.
 
 Roles in a project
 ------------------
 
-Each user has a role per project:
+Permissions are assigned per project.
+This means that the same user can be a team lead in one project and a regular member in another.
 
-- **Member**: participates in the project and can work on objectives, key results, and tasks inside the project scope.
-- **Team lead (leader)**: has all member capabilities and can additionally manage the project itself (e.g., update or delete the project) and manage project members.
+There are two normal project roles:
 
-Administrators are special: they can perform project-lead actions regardless of role.
+- **Member**: works on objectives, key results, and tasks within the project scope
+- **Team lead (leader)**: has all member permissions and can additionally manage the project itself and its members
 
-Role capabilities (overview)
-----------------------------
+Administrators are a special case.
+They can usually perform project-lead actions regardless of their explicit project role.
+
+What members can do
+-------------------
+
+As a member, you can usually:
+
+- view the project and its content
+- create, update, and delete objectives within the permitted project scope
+- create, update, and delete key results within permitted objectives
+- create, update, and delete tasks within permitted key results
+- update day-to-day work inside the project
+
+What team leads can do
+----------------------
+
+As a team lead, you can do everything a member can do.
+In addition, you can usually:
+
+- update the project itself
+- delete the project
+- change project-level settings such as name, deadline, done state, or icon
+- add users to the project
+- remove users from the project
+- assign the project role of a member
+
+Role overview
+-------------
 
 .. list-table::
    :header-rows: 1
@@ -31,31 +61,34 @@ Role capabilities (overview)
    * - View project content
      - Yes
      - Yes
-   * - Create/update/delete objectives linked to the project
+   * - Create, update, or delete objectives in the project scope
      - Yes
      - Yes
-   * - Create/update/delete key results (within permitted objectives)
+   * - Create, update, or delete key results in the project scope
      - Yes
      - Yes
-   * - Create/update/delete tasks (within permitted key results)
+   * - Create, update, or delete tasks in the project scope
      - Yes
      - Yes
-   * - Update/delete the project (name/deadline/done/icon)
+   * - Update or delete the project itself
      - No
      - Yes
-   * - Add users to the project and assign roles
+   * - Add or remove project members
+     - No
+     - Yes
+   * - Assign project roles
      - No
      - Yes
 
-Project membership management
------------------------------
+Managing project membership
+---------------------------
 
-Team leads can add users to a project and choose their project role (member or leader).
-Use the project members screen in the UI to:
+Project membership is usually handled by a team lead.
+Typical actions on the project-members page are:
 
 - list current members
-- add a user
-- assign the role (member/leader)
+- add a user to the project
+- assign the role **member** or **leader**
 - remove a user from the project
 
-Note: The project creator is automatically assigned the team lead role for that project.
+In many setups, the project creator is automatically assigned the team-lead role for that project.
