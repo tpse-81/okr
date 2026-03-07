@@ -5,18 +5,6 @@ This page explains the typical day-to-day workflow inside a project.
 Not every user creates projects, but most users will work with objectives,
 key results, and tasks.
 
-Typical workflow
-----------------
-
-A common workflow looks like this:
-
-1. Open a project.
-2. Review the existing objectives.
-3. Create or update key results.
-4. Update the current value of a key result.
-5. Add tasks or update task states.
-6. Repeat this over time until the project is complete.
-7. Mark the project as done when the work is finished.
 
 Projects
 --------
