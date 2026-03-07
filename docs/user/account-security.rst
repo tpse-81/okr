@@ -2,7 +2,7 @@ Account and security
 ====================
 
 This page covers password changes, two-factor authentication (2FA), and passkeys.
-All of these actions are typically available from **⋯ (More)** → **Account**.
+All of these actions are available from **⋯ (More)** → **Account**.
 
 Changing your password
 ----------------------
