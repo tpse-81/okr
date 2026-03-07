@@ -1,4 +1,4 @@
-Navigate the interface
+Navigating in the app
 ======================
 
 This page gives you a quick orientation after login.
