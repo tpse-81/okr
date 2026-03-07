@@ -36,7 +36,7 @@ After login
 After a successful login, you land on the dashboard.
 This is your starting point in the tool.
 
-From there, you can usually:
+From there, you can:
 
 - open your projects
 - check upcoming deadlines
