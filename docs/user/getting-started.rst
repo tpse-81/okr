@@ -26,7 +26,7 @@ First login
 
 If your account is marked for a password change, the tool will ask you to choose a new password before you continue.
 
-.. figure:: _images/change_password
+.. figure:: _images/change_password.png
    :alt: change password
    :width: 900px
 
