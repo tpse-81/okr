@@ -36,3 +36,13 @@ class Task(base.UUIDBase):
     key_result_id: Mapped[str] = mapped_column(
         ForeignKey("key_results.id", ondelete="CASCADE"), nullable=False
     )
+
+    # methods required for using this in a `set`, see the `/dashboard` method
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Task):
+            return False
+
+        return self.id == other.id
+
+    def __hash__(self) -> int:
+        return hash(self.id)

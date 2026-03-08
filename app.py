@@ -174,7 +174,7 @@ async def get_dashboard(
     projects = [p for p in projects if not p.is_archived]
 
     projects_with_info = []
-    tasks = []
+    tasks = set()
     for project in projects:
         # build average progress across all objectives
         progress_per_objective = [
@@ -199,9 +199,13 @@ async def get_dashboard(
             for objective in project.objectives
             for key_result in objective.key_results
         ]
-        tasks.extend(task for key_result in key_results for task in key_result.tasks)
 
-    return DashboardResponse(projects_with_info, tasks)
+        # use a set to make sure that no task is added twice
+        for key_result in key_results:
+            for task in key_result.tasks:
+                tasks.add(task)
+
+    return DashboardResponse(projects_with_info, list(tasks))
 
 
 # during test execution, data is written into memory and not
