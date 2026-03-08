@@ -9,7 +9,6 @@ services:
       # of your backend server, e.g. https://okr-api.example.com
       - "PUBLIC_API_URL=http://localhost:8000"
     restart: unless-stopped
-    network_mode: bridge
 
   backend:
     image: ghcr.io/tpse-81/okr:main
@@ -27,4 +26,3 @@ services:
       # sure to make backups of this folder if required!
       - ./data:/app/data
     restart: unless-stopped
-    network_mode: bridge
